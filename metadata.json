@@ -1,0 +1,5 @@
+{
+  "name": "Hệ thống quản lý điểm thi đua - THPT Lê Hoàn",
+  "description": "Ứng dụng quản lý thông tin chi đoàn và cấu hình kết nối Google Sheets cho THPT Lê Hoàn.",
+  "requestFramePermissions": []
+}

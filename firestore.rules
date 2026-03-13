@@ -1,0 +1,58 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // ===============================================================
+    // Assumed Data Model
+    // ===============================================================
+    //
+    // Collection: classes
+    // Document ID: auto-generated or classId
+    // Fields:
+    //   - chiDoan: string (required, 1-100 chars)
+    //   - biThu: string (0-100 chars)
+    //   - phoBiThu: string (0-100 chars)
+    //   - uyVien: string (0-100 chars)
+    //   - lopTruong: string (0-100 chars)
+    //   - sdt: string (0-20 chars)
+    //   - tongSoThanhVien: number (positive)
+    //   - doanVien: number (positive)
+    //   - thanhNien: number (positive)
+    //   - updatedAt: timestamp
+    //
+    // ===============================================================
+
+    // Helper Functions
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isAdmin() {
+      return isAuthenticated() && 
+        (request.auth.token.email == "huuthe87@gmail.com" && request.auth.token.email_verified == true);
+    }
+
+    function hasOnlyAllowedFields(fields) {
+      return request.resource.data.keys().hasOnly(fields);
+    }
+
+    function isValidClass(data) {
+      return hasOnlyAllowedFields(['chiDoan', 'biThu', 'phoBiThu', 'uyVien', 'lopTruong', 'sdt', 'tongSoThanhVien', 'doanVien', 'thanhNien', 'updatedAt']) &&
+             data.chiDoan is string && data.chiDoan.size() > 0 && data.chiDoan.size() <= 100 &&
+             (!('biThu' in data) || (data.biThu is string && data.biThu.size() <= 100)) &&
+             (!('phoBiThu' in data) || (data.phoBiThu is string && data.phoBiThu.size() <= 100)) &&
+             (!('uyVien' in data) || (data.uyVien is string && data.uyVien.size() <= 100)) &&
+             (!('lopTruong' in data) || (data.lopTruong is string && data.lopTruong.size() <= 100)) &&
+             (!('sdt' in data) || (data.sdt is string && data.sdt.size() <= 20)) &&
+             (!('tongSoThanhVien' in data) || (data.tongSoThanhVien is number && data.tongSoThanhVien >= 0)) &&
+             (!('doanVien' in data) || (data.doanVien is number && data.doanVien >= 0)) &&
+             (!('thanhNien' in data) || (data.thanhNien is number && data.thanhNien >= 0));
+    }
+
+    match /classes/{classId} {
+      allow read: if isAuthenticated();
+      allow create: if isAdmin() && isValidClass(request.resource.data);
+      allow update: if isAdmin() && isValidClass(request.resource.data);
+      allow delete: if isAdmin();
+    }
+  }
+}
