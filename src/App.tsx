@@ -114,6 +114,7 @@ export default function App() {
   
   const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
   const [loginForm, setLoginForm] = useState({ username: '', password: '' });
+  const [confirmDelete, setConfirmDelete] = useState<{id: string, type: 'qlchidoan' | 'taikhoan'} | null>(null);
 
   const [status, setStatus] = useState<{ type: 'success' | 'error' | 'loading' | null, message: string }>({
     type: null,
@@ -130,7 +131,7 @@ export default function App() {
     setStatus({ type: 'error', message: 'Đã xảy ra lỗi khi truy cập dữ liệu.' });
   };
 
-  // Seed Admin Account if not exists
+  // Seed Admin Account if not exists, and clean up duplicates
   useEffect(() => {
     const seedAdmin = async () => {
       try {
@@ -147,9 +148,16 @@ export default function App() {
             updatedAt: serverTimestamp()
           });
           console.log('Đã tạo tài khoản Admin mặc định.');
+        } else if (snapshot.docs.length > 1) {
+          // Keep the first one, delete the rest
+          const [firstDoc, ...duplicates] = snapshot.docs;
+          for (const duplicate of duplicates) {
+            await deleteDoc(doc(db, 'taikhoan', duplicate.id));
+          }
+          console.log(`Đã xóa ${duplicates.length} tài khoản Admin bị trùng lặp.`);
         }
       } catch (error) {
-        console.error('Lỗi khi tạo tài khoản Admin:', error);
+        console.error('Lỗi khi tạo/kiểm tra tài khoản Admin:', error);
       }
     };
     seedAdmin();
@@ -320,11 +328,18 @@ export default function App() {
     if (!isEditing || currentUser?.role !== 'Admin') return;
     const data = formData as TaiKhoan;
     
+    // Fallback for legacy 'User' role if it wasn't changed in the dropdown
+    let roleToSave = data.role || 'DV';
+    if (roleToSave === 'User') {
+      roleToSave = 'DV';
+    }
+
     setStatus({ type: 'loading', message: 'Đang cập nhật...' });
     try {
       const { id, ...dataToUpdate } = data;
       await updateDoc(doc(db, 'taikhoan', isEditing), {
         ...dataToUpdate,
+        role: roleToSave,
         chiDoan: data.chiDoan || '',
         updatedAt: serverTimestamp()
       });
@@ -500,56 +515,52 @@ export default function App() {
                 </div>
               </div>
 
-              <div className="overflow-x-auto">
+              <div className="hidden md:block overflow-x-auto">
                 <table className="w-full text-left border-collapse">
                   <thead>
                     <tr className="bg-slate-50 text-slate-500 text-sm border-b border-slate-200">
-                      <th className="p-4 font-semibold">Tên chi đoàn</th>
-                      <th className="p-4 font-semibold text-center">Đoàn viên</th>
-                      <th className="p-4 font-semibold text-center">Thanh niên</th>
-                      <th className="p-4 font-semibold text-center">Tổng số</th>
-                      <th className="p-4 font-semibold">Phòng học</th>
-                      <th className="p-4 font-semibold">Bí thư</th>
-                      {currentUser && <th className="p-4 font-semibold text-right">Thao tác</th>}
+                      <th className="py-2 px-3 font-semibold">Tên chi đoàn</th>
+                      <th className="py-2 px-3 font-semibold text-center">Đoàn viên</th>
+                      <th className="py-2 px-3 font-semibold text-center">Thanh niên</th>
+                      <th className="py-2 px-3 font-semibold text-center">Tổng số</th>
+                      <th className="py-2 px-3 font-semibold">Phòng học</th>
+                      <th className="py-2 px-3 font-semibold">Bí thư</th>
+                      {currentUser && <th className="py-2 px-3 font-semibold text-right">Thao tác</th>}
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-slate-100">
+                  <tbody className="divide-y divide-slate-100 text-sm">
                     {filteredQlChiDoan.length === 0 ? (
                       <tr>
-                        <td colSpan={currentUser ? 7 : 6} className="p-8 text-center text-slate-500">
-                          <Database size={48} className="mx-auto mb-3 text-slate-300" />
+                        <td colSpan={currentUser ? 7 : 6} className="py-6 px-3 text-center text-slate-500">
+                          <Database size={32} className="mx-auto mb-2 text-slate-300" />
                           <p>Chưa có dữ liệu chi đoàn nào.</p>
                         </td>
                       </tr>
                     ) : (
                       filteredQlChiDoan.map((item) => (
                         <tr key={item.id} className="hover:bg-slate-50/80 transition-colors group">
-                          <td className="p-4 font-medium text-slate-800">{item.tenchidoan}</td>
-                          <td className="p-4 text-center text-slate-600">{item.doanvien}</td>
-                          <td className="p-4 text-center text-slate-600">{item.thanhnien}</td>
-                          <td className="p-4 text-center font-semibold text-primary">{item.tongso}</td>
-                          <td className="p-4 text-slate-600">{item.phonghoc}</td>
-                          <td className="p-4 text-slate-600">{item.bithu}</td>
+                          <td className="py-2 px-3 font-medium text-slate-800">{item.tenchidoan}</td>
+                          <td className="py-2 px-3 text-center text-slate-600">{item.doanvien}</td>
+                          <td className="py-2 px-3 text-center text-slate-600">{item.thanhnien}</td>
+                          <td className="py-2 px-3 text-center font-semibold text-primary">{item.tongso}</td>
+                          <td className="py-2 px-3 text-slate-600">{item.phonghoc}</td>
+                          <td className="py-2 px-3 text-slate-600">{item.bithu}</td>
                           {currentUser && (
-                            <td className="p-4 text-right">
-                              <div className="flex items-center justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                            <td className="py-2 px-3 text-right">
+                              <div className="flex items-center justify-end gap-1">
                                 <button
                                   onClick={() => {
                                     setFormData(item);
                                     setIsEditing(item.id);
                                   }}
-                                  className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                                  className="p-1.5 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
                                   title="Sửa"
                                 >
                                   <Edit2 size={16} />
                                 </button>
                                 <button
-                                  onClick={() => {
-                                    if (window.confirm('Bạn có chắc chắn muốn xóa chi đoàn này?')) {
-                                      handleDeleteQlChiDoan(item.id);
-                                    }
-                                  }}
-                                  className="p-2 text-rose-600 hover:bg-rose-50 rounded-lg transition-colors"
+                                  onClick={() => setConfirmDelete({ id: item.id, type: 'qlchidoan' })}
+                                  className="p-1.5 text-rose-600 hover:bg-rose-50 rounded-lg transition-colors"
                                   title="Xóa"
                                 >
                                   <Trash2 size={16} />
@@ -562,6 +573,58 @@ export default function App() {
                     )}
                   </tbody>
                 </table>
+              </div>
+
+              {/* Mobile View */}
+              <div className="md:hidden divide-y divide-slate-100">
+                {filteredQlChiDoan.length === 0 ? (
+                  <div className="py-6 px-3 text-center text-slate-500">
+                    <Database size={32} className="mx-auto mb-2 text-slate-300" />
+                    <p>Chưa có dữ liệu chi đoàn nào.</p>
+                  </div>
+                ) : (
+                  filteredQlChiDoan.map((item) => (
+                    <div key={item.id} className="p-3 space-y-2 hover:bg-slate-50/80 transition-colors">
+                      <div className="flex justify-between items-start">
+                        <div>
+                          <h3 className="font-bold text-slate-800 text-base">{item.tenchidoan}</h3>
+                          <p className="text-xs text-slate-500">Bí thư: {item.bithu || 'Chưa cập nhật'}</p>
+                        </div>
+                        <div className="text-right">
+                          <span className="bg-primary/10 text-primary px-2 py-0.5 rounded-full text-xs font-bold">
+                            Tổng: {item.tongso}
+                          </span>
+                        </div>
+                      </div>
+                      
+                      <div className="grid grid-cols-2 gap-1.5 text-xs text-slate-600 bg-slate-50 p-2 rounded-lg">
+                        <div>Đoàn viên: <span className="font-medium text-slate-800">{item.doanvien}</span></div>
+                        <div>Thanh niên: <span className="font-medium text-slate-800">{item.thanhnien}</span></div>
+                        <div className="col-span-2">Phòng học: <span className="font-medium text-slate-800">{item.phonghoc || '-'}</span></div>
+                      </div>
+
+                      {currentUser && (
+                        <div className="flex justify-end gap-2 pt-1">
+                          <button
+                            onClick={() => {
+                              setFormData(item);
+                              setIsEditing(item.id);
+                            }}
+                            className="flex items-center gap-1 px-2.5 py-1.5 text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-lg transition-colors text-xs font-medium"
+                          >
+                            <Edit2 size={14} /> Sửa
+                          </button>
+                          <button
+                            onClick={() => setConfirmDelete({ id: item.id, type: 'qlchidoan' })}
+                            className="flex items-center gap-1 px-2.5 py-1.5 text-rose-600 bg-rose-50 hover:bg-rose-100 rounded-lg transition-colors text-xs font-medium"
+                          >
+                            <Trash2 size={14} /> Xóa
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  ))
+                )}
               </div>
             </div>
           )}
@@ -593,7 +656,7 @@ export default function App() {
                   </div>
                   <button
                     onClick={() => {
-                      setFormData({ role: 'User' });
+                      setFormData({ role: 'DV' });
                       setIsEditing('new_taikhoan');
                     }}
                     className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-xl font-medium transition-colors whitespace-nowrap"
@@ -604,59 +667,59 @@ export default function App() {
                 </div>
               </div>
 
-              <div className="overflow-x-auto">
+              <div className="hidden md:block overflow-x-auto">
                 <table className="w-full text-left border-collapse">
                   <thead>
                     <tr className="bg-slate-50 text-slate-500 text-sm border-b border-slate-200">
-                      <th className="p-4 font-semibold">Tên đăng nhập</th>
-                      <th className="p-4 font-semibold">Họ và tên</th>
-                      <th className="p-4 font-semibold">Đối tượng</th>
-                      <th className="p-4 font-semibold">Chi đoàn</th>
-                      <th className="p-4 font-semibold text-right">Thao tác</th>
+                      <th className="py-2 px-3 font-semibold">Tên đăng nhập</th>
+                      <th className="py-2 px-3 font-semibold">Họ và tên</th>
+                      <th className="py-2 px-3 font-semibold">Đối tượng</th>
+                      <th className="py-2 px-3 font-semibold">Chi đoàn</th>
+                      <th className="py-2 px-3 font-semibold text-right">Thao tác</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-slate-100">
+                  <tbody className="divide-y divide-slate-100 text-sm">
                     {filteredTaiKhoan.length === 0 ? (
                       <tr>
-                        <td colSpan={5} className="p-8 text-center text-slate-500">
-                          <Database size={48} className="mx-auto mb-3 text-slate-300" />
+                        <td colSpan={5} className="py-6 px-3 text-center text-slate-500">
+                          <Database size={32} className="mx-auto mb-2 text-slate-300" />
                           <p>Chưa có tài khoản nào.</p>
                         </td>
                       </tr>
                     ) : (
                       filteredTaiKhoan.map((item) => (
                         <tr key={item.id} className="hover:bg-slate-50/80 transition-colors group">
-                          <td className="p-4 font-medium text-slate-800">{item.username}</td>
-                          <td className="p-4 text-slate-600">{item.fullName}</td>
-                          <td className="p-4">
+                          <td className="py-2 px-3 font-medium text-slate-800">{item.username}</td>
+                          <td className="py-2 px-3 text-slate-600">{item.fullName}</td>
+                          <td className="py-2 px-3">
                             <span className={cn(
-                              "px-2 py-1 rounded-md text-xs font-medium",
-                              item.role === 'Admin' ? "bg-rose-100 text-rose-700" : "bg-blue-100 text-blue-700"
+                              "px-2 py-0.5 rounded-md text-xs font-medium",
+                              item.role === 'Admin' ? "bg-rose-100 text-rose-700" : 
+                              item.role === 'BTV' ? "bg-purple-100 text-purple-700" :
+                              item.role === 'BCH' ? "bg-amber-100 text-amber-700" :
+                              item.role === 'BT' ? "bg-emerald-100 text-emerald-700" :
+                              "bg-blue-100 text-blue-700"
                             )}>
                               {item.role}
                             </span>
                           </td>
-                          <td className="p-4 text-slate-600">{item.chiDoan || '-'}</td>
-                          <td className="p-4 text-right">
-                            <div className="flex items-center justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                          <td className="py-2 px-3 text-slate-600">{item.chiDoan || '-'}</td>
+                          <td className="py-2 px-3 text-right">
+                            <div className="flex items-center justify-end gap-1">
                               <button
                                 onClick={() => {
                                   setFormData(item);
                                   setIsEditing(item.id);
                                 }}
-                                className="p-2 text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors"
+                                className="p-1.5 text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors"
                                 title="Sửa"
                               >
                                 <Edit2 size={16} />
                               </button>
                               {item.username !== 'Admin' && (
                                 <button
-                                  onClick={() => {
-                                    if (window.confirm('Bạn có chắc chắn muốn xóa tài khoản này?')) {
-                                      handleDeleteTaiKhoan(item.id);
-                                    }
-                                  }}
-                                  className="p-2 text-rose-600 hover:bg-rose-50 rounded-lg transition-colors"
+                                  onClick={() => setConfirmDelete({ id: item.id, type: 'taikhoan' })}
+                                  className="p-1.5 text-rose-600 hover:bg-rose-50 rounded-lg transition-colors"
                                   title="Xóa"
                                 >
                                   <Trash2 size={16} />
@@ -669,6 +732,63 @@ export default function App() {
                     )}
                   </tbody>
                 </table>
+              </div>
+
+              {/* Mobile View */}
+              <div className="md:hidden divide-y divide-slate-100">
+                {filteredTaiKhoan.length === 0 ? (
+                  <div className="py-6 px-3 text-center text-slate-500">
+                    <Database size={32} className="mx-auto mb-2 text-slate-300" />
+                    <p>Chưa có tài khoản nào.</p>
+                  </div>
+                ) : (
+                  filteredTaiKhoan.map((item) => (
+                    <div key={item.id} className="p-3 space-y-2 hover:bg-slate-50/80 transition-colors">
+                      <div className="flex justify-between items-start">
+                        <div>
+                          <h3 className="font-bold text-slate-800 text-base">{item.fullName}</h3>
+                          <p className="text-xs text-slate-500">@{item.username}</p>
+                        </div>
+                        <span className={cn(
+                          "px-2 py-0.5 rounded-md text-xs font-medium",
+                          item.role === 'Admin' ? "bg-rose-100 text-rose-700" : 
+                          item.role === 'BTV' ? "bg-purple-100 text-purple-700" :
+                          item.role === 'BCH' ? "bg-amber-100 text-amber-700" :
+                          item.role === 'BT' ? "bg-emerald-100 text-emerald-700" :
+                          "bg-blue-100 text-blue-700"
+                        )}>
+                          {item.role}
+                        </span>
+                      </div>
+                      
+                      {item.chiDoan && (
+                        <div className="text-xs text-slate-600 bg-slate-50 p-2 rounded-lg">
+                          Chi đoàn: <span className="font-medium text-slate-800">{item.chiDoan}</span>
+                        </div>
+                      )}
+
+                      <div className="flex justify-end gap-2 pt-1">
+                        <button
+                          onClick={() => {
+                            setFormData(item);
+                            setIsEditing(item.id);
+                          }}
+                          className="flex items-center gap-1 px-2.5 py-1.5 text-indigo-600 bg-indigo-50 hover:bg-indigo-100 rounded-lg transition-colors text-xs font-medium"
+                        >
+                          <Edit2 size={14} /> Sửa
+                        </button>
+                        {item.username !== 'Admin' && (
+                          <button
+                            onClick={() => setConfirmDelete({ id: item.id, type: 'taikhoan' })}
+                            className="flex items-center gap-1 px-2.5 py-1.5 text-rose-600 bg-rose-50 hover:bg-rose-100 rounded-lg transition-colors text-xs font-medium"
+                          >
+                            <Trash2 size={14} /> Xóa
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  ))
+                )}
               </div>
             </div>
           )}
@@ -926,12 +1046,15 @@ export default function App() {
                 <div>
                   <label className="block text-sm font-medium text-slate-700 mb-1">Đối tượng *</label>
                   <select
-                    value={formData.role || 'User'}
+                    value={formData.role || 'DV'}
                     onChange={e => setFormData({...formData, role: e.target.value})}
                     className="w-full px-4 py-2 rounded-xl border border-slate-200 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none bg-white"
                   >
-                    <option value="User">Người dùng (User)</option>
-                    <option value="Admin">Quản trị viên (Admin)</option>
+                    <option value="Admin">Admin (Quản trị viên)</option>
+                    <option value="BTV">BTV (Ban Thường vụ)</option>
+                    <option value="BCH">BCH (Ban Chấp hành)</option>
+                    <option value="BT">BT (Bí thư)</option>
+                    <option value="DV">DV (Đoàn viên)</option>
                   </select>
                 </div>
 
@@ -966,6 +1089,41 @@ export default function App() {
           </div>
         )}
       </AnimatePresence>
+
+        {/* Confirm Delete Modal */}
+        {confirmDelete && (
+          <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+            <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm overflow-hidden animate-in fade-in zoom-in duration-200">
+              <div className="p-6">
+                <h3 className="text-xl font-bold text-slate-800 mb-2">Xác nhận xóa</h3>
+                <p className="text-slate-600 mb-6">
+                  Bạn có chắc chắn muốn xóa {confirmDelete.type === 'qlchidoan' ? 'chi đoàn' : 'tài khoản'} này không? Hành động này không thể hoàn tác.
+                </p>
+                <div className="flex items-center justify-end gap-3">
+                  <button
+                    onClick={() => setConfirmDelete(null)}
+                    className="px-4 py-2 text-slate-600 hover:bg-slate-100 rounded-xl font-medium transition-colors"
+                  >
+                    Hủy
+                  </button>
+                  <button
+                    onClick={() => {
+                      if (confirmDelete.type === 'qlchidoan') {
+                        handleDeleteQlChiDoan(confirmDelete.id);
+                      } else {
+                        handleDeleteTaiKhoan(confirmDelete.id);
+                      }
+                      setConfirmDelete(null);
+                    }}
+                    className="px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white rounded-xl font-medium transition-colors"
+                  >
+                    Xóa ngay
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
 
       </div>
     </ErrorBoundary>

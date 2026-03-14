@@ -24,7 +24,7 @@
         "username": { "type": "string", "description": "Tên đăng nhập" },
         "password": { "type": "string", "description": "Mật khẩu" },
         "fullName": { "type": "string", "description": "Họ và tên" },
-        "role": { "type": "string", "description": "Đối tượng (Admin, User...)" },
+        "role": { "type": "string", "description": "Đối tượng (Admin, BTV, BCH, BT, DV)" },
         "chiDoan": { "type": "string", "description": "Tên chi đoàn quản lý" },
         "updatedAt": { "type": "string", "format": "date-time", "description": "Thời gian cập nhật cuối" }
       },
