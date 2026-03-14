@@ -25,7 +25,7 @@ import {
 } from 'lucide-react';
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
-import { QlChiDoan, TaiKhoan } from './types';
+import { QlChiDoan, TaiKhoan, DoanVien, TieuChiTD, PhanCong } from './types';
 import { 
   db, 
   collection, 
@@ -103,10 +103,15 @@ class ErrorBoundary extends Component<{children: React.ReactNode}, {hasError: bo
 
 export default function App() {
   const [currentUser, setCurrentUser] = useState<TaiKhoan | null>(null);
-  const [activeTab, setActiveTab] = useState<'qlchidoan' | 'taikhoan'>('qlchidoan');
+  const [activeTab, setActiveTab] = useState<'qlchidoan' | 'taikhoan' | 'doanvien' | 'tieuchitd' | 'phancong'>('qlchidoan');
+  const [selectedNamHoc, setSelectedNamHoc] = useState('2025-2026');
+  const [selectedHocKy, setSelectedHocKy] = useState('HK1');
   
   const [qlChiDoan, setQlChiDoan] = useState<QlChiDoan[]>([]);
   const [taiKhoanList, setTaiKhoanList] = useState<TaiKhoan[]>([]);
+  const [doanVienList, setDoanVienList] = useState<DoanVien[]>([]);
+  const [tieuChiList, setTieuChiList] = useState<TieuChiTD[]>([]);
+  const [phanCongList, setPhanCongList] = useState<PhanCong[]>([]);
   
   const [isEditing, setIsEditing] = useState<string | null>(null);
   const [formData, setFormData] = useState<any>({});
@@ -114,7 +119,7 @@ export default function App() {
   
   const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
   const [loginForm, setLoginForm] = useState({ username: '', password: '' });
-  const [confirmDelete, setConfirmDelete] = useState<{id: string, type: 'qlchidoan' | 'taikhoan'} | null>(null);
+  const [confirmDelete, setConfirmDelete] = useState<{id: string, type: 'qlchidoan' | 'taikhoan' | 'doanvien' | 'tieuchitd' | 'phancong'} | null>(null);
 
   const [status, setStatus] = useState<{ type: 'success' | 'error' | 'loading' | null, message: string }>({
     type: null,
@@ -165,18 +170,23 @@ export default function App() {
 
   // Fetch QlChiDoan (Always visible)
   useEffect(() => {
-    const q = query(collection(db, 'qlchidoan'), orderBy('tenchidoan', 'asc'));
+    const q = query(
+      collection(db, 'qlchidoan'),
+      where('namHoc', '==', selectedNamHoc),
+      where('hocKy', '==', selectedHocKy)
+    );
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const data = snapshot.docs.map(doc => ({
         id: doc.id,
         ...doc.data()
       })) as QlChiDoan[];
+      data.sort((a, b) => a.tenchidoan.localeCompare(b.tenchidoan));
       setQlChiDoan(data);
     }, (error) => {
       handleFirestoreError(error, OperationType.LIST, 'qlchidoan');
     });
     return () => unsubscribe();
-  }, []);
+  }, [selectedNamHoc, selectedHocKy]);
 
   // Fetch TaiKhoan (Only if Admin)
   useEffect(() => {
@@ -196,6 +206,66 @@ export default function App() {
     });
     return () => unsubscribe();
   }, [currentUser]);
+
+  // Fetch DoanVien
+  useEffect(() => {
+    const q = query(
+      collection(db, 'doanvien'),
+      where('namHoc', '==', selectedNamHoc),
+      where('hocKy', '==', selectedHocKy)
+    );
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const data = snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      })) as DoanVien[];
+      data.sort((a, b) => a.hoTen.localeCompare(b.hoTen));
+      setDoanVienList(data);
+    }, (error) => {
+      handleFirestoreError(error, OperationType.LIST, 'doanvien');
+    });
+    return () => unsubscribe();
+  }, [selectedNamHoc, selectedHocKy]);
+
+  // Fetch TieuChiTD
+  useEffect(() => {
+    const q = query(
+      collection(db, 'tieuchitd'),
+      where('namHoc', '==', selectedNamHoc),
+      where('hocKy', '==', selectedHocKy)
+    );
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const data = snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      })) as TieuChiTD[];
+      data.sort((a, b) => a.maTieuChi.localeCompare(b.maTieuChi));
+      setTieuChiList(data);
+    }, (error) => {
+      handleFirestoreError(error, OperationType.LIST, 'tieuchitd');
+    });
+    return () => unsubscribe();
+  }, [selectedNamHoc, selectedHocKy]);
+
+  // Fetch PhanCong
+  useEffect(() => {
+    const q = query(
+      collection(db, 'phancong'),
+      where('namHoc', '==', selectedNamHoc),
+      where('hocKy', '==', selectedHocKy)
+    );
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const data = snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      })) as PhanCong[];
+      data.sort((a, b) => a.tuan.localeCompare(b.tuan));
+      setPhanCongList(data);
+    }, (error) => {
+      handleFirestoreError(error, OperationType.LIST, 'phancong');
+    });
+    return () => unsubscribe();
+  }, [selectedNamHoc, selectedHocKy]);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -238,6 +308,8 @@ export default function App() {
     try {
       const id = Date.now().toString();
       await setDoc(doc(db, 'qlchidoan', id), {
+        namHoc: selectedNamHoc,
+        hocKy: selectedHocKy,
         tenchidoan: data.tenchidoan,
         doanvien: Number(data.doanvien) || 0,
         thanhnien: Number(data.thanhnien) || 0,
@@ -362,6 +434,185 @@ export default function App() {
     }
   };
 
+  // --- Đoàn Viên CRUD ---
+  const handleAddDoanVien = async () => {
+    if (!currentUser) return;
+    const data = formData as DoanVien;
+    if (!data.hoTen || !data.chiDoan) return;
+    
+    setStatus({ type: 'loading', message: 'Đang lưu...' });
+    try {
+      const id = Date.now().toString();
+      await setDoc(doc(db, 'doanvien', id), {
+        namHoc: selectedNamHoc,
+        hocKy: selectedHocKy,
+        hoTen: data.hoTen,
+        ngaySinh: data.ngaySinh || '',
+        gioiTinh: data.gioiTinh || '',
+        danToc: data.danToc || '',
+        doiTuong: data.doiTuong || '',
+        doanVien: Boolean(data.doanVien),
+        chiDoan: data.chiDoan,
+        ngayVaoDoan: data.ngayVaoDoan || '',
+        sdt: data.sdt || '',
+        thongTinThem: data.thongTinThem || '',
+        updatedAt: serverTimestamp()
+      });
+      setStatus({ type: 'success', message: 'Đã thêm đoàn viên thành công!' });
+      setIsEditing(null);
+      setFormData({});
+    } catch (error: any) {
+      handleFirestoreError(error, OperationType.CREATE, 'doanvien');
+    }
+  };
+
+  const handleUpdateDoanVien = async () => {
+    if (!isEditing || !currentUser) return;
+    const data = formData as DoanVien;
+    
+    setStatus({ type: 'loading', message: 'Đang cập nhật...' });
+    try {
+      const { id, ...dataToUpdate } = data;
+      await updateDoc(doc(db, 'doanvien', isEditing), {
+        ...dataToUpdate,
+        doanVien: Boolean(data.doanVien),
+        updatedAt: serverTimestamp()
+      });
+      setStatus({ type: 'success', message: 'Cập nhật đoàn viên thành công!' });
+      setIsEditing(null);
+      setFormData({});
+    } catch (error: any) {
+      handleFirestoreError(error, OperationType.UPDATE, `doanvien/${isEditing}`);
+    }
+  };
+
+  const handleDeleteDoanVien = async (id: string) => {
+    if (!currentUser) return;
+    setStatus({ type: 'loading', message: 'Đang xóa...' });
+    try {
+      await deleteDoc(doc(db, 'doanvien', id));
+      setStatus({ type: 'success', message: 'Đã xóa đoàn viên.' });
+    } catch (error: any) {
+      handleFirestoreError(error, OperationType.DELETE, `doanvien/${id}`);
+    }
+  };
+
+  // --- Tiêu Chí TĐ CRUD ---
+  const handleAddTieuChiTD = async () => {
+    if (!currentUser) return;
+    const data = formData as TieuChiTD;
+    if (!data.maTieuChi || !data.tenTieuChi) return;
+    
+    setStatus({ type: 'loading', message: 'Đang lưu...' });
+    try {
+      const id = Date.now().toString();
+      await setDoc(doc(db, 'tieuchitd', id), {
+        namHoc: selectedNamHoc,
+        hocKy: selectedHocKy,
+        maTieuChi: data.maTieuChi,
+        tenTieuChi: data.tenTieuChi,
+        moTa: data.moTa || '',
+        loaiTieuChi: data.loaiTieuChi || '',
+        diemTru: Number(data.diemTru) || 0,
+        diemCong: Number(data.diemCong) || 0,
+        ghiChu: data.ghiChu || '',
+        updatedAt: serverTimestamp()
+      });
+      setStatus({ type: 'success', message: 'Đã thêm tiêu chí thành công!' });
+      setIsEditing(null);
+      setFormData({});
+    } catch (error: any) {
+      handleFirestoreError(error, OperationType.CREATE, 'tieuchitd');
+    }
+  };
+
+  const handleUpdateTieuChiTD = async () => {
+    if (!isEditing || !currentUser) return;
+    const data = formData as TieuChiTD;
+    
+    setStatus({ type: 'loading', message: 'Đang cập nhật...' });
+    try {
+      const { id, ...dataToUpdate } = data;
+      await updateDoc(doc(db, 'tieuchitd', isEditing), {
+        ...dataToUpdate,
+        diemTru: Number(data.diemTru) || 0,
+        diemCong: Number(data.diemCong) || 0,
+        updatedAt: serverTimestamp()
+      });
+      setStatus({ type: 'success', message: 'Cập nhật tiêu chí thành công!' });
+      setIsEditing(null);
+      setFormData({});
+    } catch (error: any) {
+      handleFirestoreError(error, OperationType.UPDATE, `tieuchitd/${isEditing}`);
+    }
+  };
+
+  const handleDeleteTieuChiTD = async (id: string) => {
+    if (!currentUser) return;
+    setStatus({ type: 'loading', message: 'Đang xóa...' });
+    try {
+      await deleteDoc(doc(db, 'tieuchitd', id));
+      setStatus({ type: 'success', message: 'Đã xóa tiêu chí.' });
+    } catch (error: any) {
+      handleFirestoreError(error, OperationType.DELETE, `tieuchitd/${id}`);
+    }
+  };
+
+  // --- Phân Công CRUD ---
+  const handleAddPhanCong = async () => {
+    if (!currentUser) return;
+    const data = formData as PhanCong;
+    if (!data.tuan || !data.lopCham || !data.chamLop) return;
+    
+    setStatus({ type: 'loading', message: 'Đang lưu...' });
+    try {
+      const id = Date.now().toString();
+      await setDoc(doc(db, 'phancong', id), {
+        namHoc: selectedNamHoc,
+        hocKy: selectedHocKy,
+        tuan: data.tuan,
+        lopCham: data.lopCham,
+        chamLop: data.chamLop,
+        updatedAt: serverTimestamp()
+      });
+      setStatus({ type: 'success', message: 'Đã thêm phân công thành công!' });
+      setIsEditing(null);
+      setFormData({});
+    } catch (error: any) {
+      handleFirestoreError(error, OperationType.CREATE, 'phancong');
+    }
+  };
+
+  const handleUpdatePhanCong = async () => {
+    if (!isEditing || !currentUser) return;
+    const data = formData as PhanCong;
+    
+    setStatus({ type: 'loading', message: 'Đang cập nhật...' });
+    try {
+      const { id, ...dataToUpdate } = data;
+      await updateDoc(doc(db, 'phancong', isEditing), {
+        ...dataToUpdate,
+        updatedAt: serverTimestamp()
+      });
+      setStatus({ type: 'success', message: 'Cập nhật phân công thành công!' });
+      setIsEditing(null);
+      setFormData({});
+    } catch (error: any) {
+      handleFirestoreError(error, OperationType.UPDATE, `phancong/${isEditing}`);
+    }
+  };
+
+  const handleDeletePhanCong = async (id: string) => {
+    if (!currentUser) return;
+    setStatus({ type: 'loading', message: 'Đang xóa...' });
+    try {
+      await deleteDoc(doc(db, 'phancong', id));
+      setStatus({ type: 'success', message: 'Đã xóa phân công.' });
+    } catch (error: any) {
+      handleFirestoreError(error, OperationType.DELETE, `phancong/${id}`);
+    }
+  };
+
   const filteredQlChiDoan = qlChiDoan.filter(item => 
     item.tenchidoan.toLowerCase().includes(searchTerm.toLowerCase()) ||
     item.bithu.toLowerCase().includes(searchTerm.toLowerCase())
@@ -370,6 +621,21 @@ export default function App() {
   const filteredTaiKhoan = taiKhoanList.filter(item => 
     item.username.toLowerCase().includes(searchTerm.toLowerCase()) ||
     item.fullName.toLowerCase().includes(searchTerm.toLowerCase())
+  );
+
+  const filteredDoanVien = doanVienList.filter(item => 
+    item.hoTen.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    item.chiDoan.toLowerCase().includes(searchTerm.toLowerCase())
+  );
+
+  const filteredTieuChi = tieuChiList.filter(item => 
+    item.maTieuChi.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    item.tenTieuChi.toLowerCase().includes(searchTerm.toLowerCase())
+  );
+
+  const filteredPhanCong = phanCongList.filter(item => 
+    item.lopCham.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    item.chamLop.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
   return (
@@ -420,27 +686,57 @@ export default function App() {
         
         {/* Tabs */}
         {currentUser && (
-          <div className="max-w-7xl mx-auto px-4 flex gap-2 mt-2">
+          <div className="max-w-7xl mx-auto px-4 flex gap-2 mt-2 overflow-x-auto no-scrollbar">
             <button
               onClick={() => setActiveTab('qlchidoan')}
               className={cn(
-                "px-6 py-3 rounded-t-xl font-medium transition-colors flex items-center gap-2",
+                "px-4 py-3 rounded-t-xl font-medium transition-colors flex items-center gap-2 whitespace-nowrap",
                 activeTab === 'qlchidoan' ? "bg-slate-50 text-primary" : "bg-white/10 text-white hover:bg-white/20"
               )}
             >
               <Users size={18} />
-              Quản lý chi đoàn
+              QL Chi đoàn
+            </button>
+            <button
+              onClick={() => setActiveTab('doanvien')}
+              className={cn(
+                "px-4 py-3 rounded-t-xl font-medium transition-colors flex items-center gap-2 whitespace-nowrap",
+                activeTab === 'doanvien' ? "bg-slate-50 text-primary" : "bg-white/10 text-white hover:bg-white/20"
+              )}
+            >
+              <Users size={18} />
+              QL Đoàn viên
+            </button>
+            <button
+              onClick={() => setActiveTab('tieuchitd')}
+              className={cn(
+                "px-4 py-3 rounded-t-xl font-medium transition-colors flex items-center gap-2 whitespace-nowrap",
+                activeTab === 'tieuchitd' ? "bg-slate-50 text-primary" : "bg-white/10 text-white hover:bg-white/20"
+              )}
+            >
+              <CheckCircle2 size={18} />
+              Tiêu chí TĐ
+            </button>
+            <button
+              onClick={() => setActiveTab('phancong')}
+              className={cn(
+                "px-4 py-3 rounded-t-xl font-medium transition-colors flex items-center gap-2 whitespace-nowrap",
+                activeTab === 'phancong' ? "bg-slate-50 text-primary" : "bg-white/10 text-white hover:bg-white/20"
+              )}
+            >
+              <Edit2 size={18} />
+              Phân công
             </button>
             {currentUser.role === 'Admin' && (
               <button
                 onClick={() => setActiveTab('taikhoan')}
                 className={cn(
-                  "px-6 py-3 rounded-t-xl font-medium transition-colors flex items-center gap-2",
+                  "px-4 py-3 rounded-t-xl font-medium transition-colors flex items-center gap-2 whitespace-nowrap",
                   activeTab === 'taikhoan' ? "bg-slate-50 text-primary" : "bg-white/10 text-white hover:bg-white/20"
                 )}
               >
                 <UserCog size={18} />
-                Quản lý tài khoản
+                QL Tài khoản
               </button>
             )}
           </div>
@@ -450,6 +746,35 @@ export default function App() {
       {/* Main Content */}
       <main className="flex-1 max-w-7xl w-full mx-auto p-4 md:p-6">
         <div className="space-y-6">
+          {/* Global Filter Bar */}
+          {activeTab !== 'taikhoan' && (
+            <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-4 flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between">
+              <div className="flex items-center gap-2 text-slate-600 font-medium">
+                <Database size={20} className="text-indigo-500" />
+                <span>Lọc dữ liệu theo:</span>
+              </div>
+              <div className="flex flex-wrap gap-3 w-full sm:w-auto">
+                <select
+                  value={selectedNamHoc}
+                  onChange={(e) => setSelectedNamHoc(e.target.value)}
+                  className="flex-1 sm:flex-none px-4 py-2 rounded-xl border border-slate-200 focus:ring-2 focus:ring-indigo-500 outline-none bg-slate-50 font-medium text-slate-700"
+                >
+                  <option value="2024-2025">Năm học 2024-2025</option>
+                  <option value="2025-2026">Năm học 2025-2026</option>
+                  <option value="2026-2027">Năm học 2026-2027</option>
+                </select>
+                <select
+                  value={selectedHocKy}
+                  onChange={(e) => setSelectedHocKy(e.target.value)}
+                  className="flex-1 sm:flex-none px-4 py-2 rounded-xl border border-slate-200 focus:ring-2 focus:ring-indigo-500 outline-none bg-slate-50 font-medium text-slate-700"
+                >
+                  <option value="HK1">Học kỳ 1</option>
+                  <option value="HK2">Học kỳ 2</option>
+                </select>
+              </div>
+            </div>
+          )}
+
           {/* Status Message */}
           <AnimatePresence>
             {status.type && (
@@ -519,13 +844,13 @@ export default function App() {
                 <table className="w-full text-left border-collapse">
                   <thead>
                     <tr className="bg-slate-50 text-slate-500 text-sm border-b border-slate-200">
-                      <th className="py-2 px-3 font-semibold">Tên chi đoàn</th>
-                      <th className="py-2 px-3 font-semibold text-center">Đoàn viên</th>
-                      <th className="py-2 px-3 font-semibold text-center">Thanh niên</th>
-                      <th className="py-2 px-3 font-semibold text-center">Tổng số</th>
-                      <th className="py-2 px-3 font-semibold">Phòng học</th>
-                      <th className="py-2 px-3 font-semibold">Bí thư</th>
-                      {currentUser && <th className="py-2 px-3 font-semibold text-right">Thao tác</th>}
+                      <th className="py-1.5 px-2 font-semibold">Tên chi đoàn</th>
+                      <th className="py-1.5 px-2 font-semibold text-center">Đoàn viên</th>
+                      <th className="py-1.5 px-2 font-semibold text-center">Thanh niên</th>
+                      <th className="py-1.5 px-2 font-semibold text-center">Tổng số</th>
+                      <th className="py-1.5 px-2 font-semibold">Phòng học</th>
+                      <th className="py-1.5 px-2 font-semibold">Bí thư</th>
+                      {currentUser && <th className="py-1.5 px-2 font-semibold text-right">Thao tác</th>}
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100 text-sm">
@@ -539,14 +864,14 @@ export default function App() {
                     ) : (
                       filteredQlChiDoan.map((item) => (
                         <tr key={item.id} className="hover:bg-slate-50/80 transition-colors group">
-                          <td className="py-2 px-3 font-medium text-slate-800">{item.tenchidoan}</td>
-                          <td className="py-2 px-3 text-center text-slate-600">{item.doanvien}</td>
-                          <td className="py-2 px-3 text-center text-slate-600">{item.thanhnien}</td>
-                          <td className="py-2 px-3 text-center font-semibold text-primary">{item.tongso}</td>
-                          <td className="py-2 px-3 text-slate-600">{item.phonghoc}</td>
-                          <td className="py-2 px-3 text-slate-600">{item.bithu}</td>
+                          <td className="py-1.5 px-2 font-medium text-slate-800">{item.tenchidoan}</td>
+                          <td className="py-1.5 px-2 text-center text-slate-600">{item.doanvien}</td>
+                          <td className="py-1.5 px-2 text-center text-slate-600">{item.thanhnien}</td>
+                          <td className="py-1.5 px-2 text-center font-semibold text-primary">{item.tongso}</td>
+                          <td className="py-1.5 px-2 text-slate-600">{item.phonghoc}</td>
+                          <td className="py-1.5 px-2 text-slate-600">{item.bithu}</td>
                           {currentUser && (
-                            <td className="py-2 px-3 text-right">
+                            <td className="py-1.5 px-2 text-right">
                               <div className="flex items-center justify-end gap-1">
                                 <button
                                   onClick={() => {
@@ -671,11 +996,11 @@ export default function App() {
                 <table className="w-full text-left border-collapse">
                   <thead>
                     <tr className="bg-slate-50 text-slate-500 text-sm border-b border-slate-200">
-                      <th className="py-2 px-3 font-semibold">Tên đăng nhập</th>
-                      <th className="py-2 px-3 font-semibold">Họ và tên</th>
-                      <th className="py-2 px-3 font-semibold">Đối tượng</th>
-                      <th className="py-2 px-3 font-semibold">Chi đoàn</th>
-                      <th className="py-2 px-3 font-semibold text-right">Thao tác</th>
+                      <th className="py-1.5 px-2 font-semibold">Tên đăng nhập</th>
+                      <th className="py-1.5 px-2 font-semibold">Họ và tên</th>
+                      <th className="py-1.5 px-2 font-semibold">Đối tượng</th>
+                      <th className="py-1.5 px-2 font-semibold">Chi đoàn</th>
+                      <th className="py-1.5 px-2 font-semibold text-right">Thao tác</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100 text-sm">
@@ -689,9 +1014,9 @@ export default function App() {
                     ) : (
                       filteredTaiKhoan.map((item) => (
                         <tr key={item.id} className="hover:bg-slate-50/80 transition-colors group">
-                          <td className="py-2 px-3 font-medium text-slate-800">{item.username}</td>
-                          <td className="py-2 px-3 text-slate-600">{item.fullName}</td>
-                          <td className="py-2 px-3">
+                          <td className="py-1.5 px-2 font-medium text-slate-800">{item.username}</td>
+                          <td className="py-1.5 px-2 text-slate-600">{item.fullName}</td>
+                          <td className="py-1.5 px-2">
                             <span className={cn(
                               "px-2 py-0.5 rounded-md text-xs font-medium",
                               item.role === 'Admin' ? "bg-rose-100 text-rose-700" : 
@@ -703,8 +1028,8 @@ export default function App() {
                               {item.role}
                             </span>
                           </td>
-                          <td className="py-2 px-3 text-slate-600">{item.chiDoan || '-'}</td>
-                          <td className="py-2 px-3 text-right">
+                          <td className="py-1.5 px-2 text-slate-600">{item.chiDoan || '-'}</td>
+                          <td className="py-1.5 px-2 text-right">
                             <div className="flex items-center justify-end gap-1">
                               <button
                                 onClick={() => {
@@ -785,6 +1110,405 @@ export default function App() {
                             <Trash2 size={14} /> Xóa
                           </button>
                         )}
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+          )}
+          {/* Tab Content: QL Đoàn viên */}
+          {activeTab === 'doanvien' && (
+            <div className="bg-white rounded-3xl shadow-sm border border-slate-200 overflow-hidden">
+              <div className="p-6 border-b border-slate-100 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-slate-50/50">
+                <div className="flex items-center gap-3">
+                  <div className="bg-blue-100 p-2 rounded-xl text-primary">
+                    <Users size={24} />
+                  </div>
+                  <div>
+                    <h2 className="text-xl font-bold text-slate-800">Quản lý Đoàn viên</h2>
+                    <p className="text-sm text-slate-500">Danh sách đoàn viên trong trường</p>
+                  </div>
+                </div>
+                
+                <div className="flex items-center gap-3 w-full sm:w-auto">
+                  <div className="relative flex-1 sm:w-64">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
+                    <input
+                      type="text"
+                      placeholder="Tìm kiếm đoàn viên..."
+                      value={searchTerm}
+                      onChange={(e) => setSearchTerm(e.target.value)}
+                      className="w-full pl-10 pr-4 py-2 rounded-xl border border-slate-200 focus:ring-2 focus:ring-primary focus:border-primary outline-none transition-all"
+                    />
+                  </div>
+                  <button
+                    onClick={() => {
+                      setFormData({});
+                      setIsEditing('new_doanvien');
+                    }}
+                    className="flex items-center gap-2 bg-primary hover:bg-primary/90 text-white px-4 py-2 rounded-xl font-medium transition-colors whitespace-nowrap"
+                  >
+                    <Plus size={18} />
+                    <span className="hidden sm:inline">Thêm đoàn viên</span>
+                  </button>
+                </div>
+              </div>
+
+              <div className="hidden md:block overflow-x-auto">
+                <table className="w-full text-left border-collapse">
+                  <thead>
+                    <tr className="bg-slate-50 text-slate-500 text-sm border-b border-slate-200">
+                      <th className="py-1.5 px-2 font-semibold">Họ tên</th>
+                      <th className="py-1.5 px-2 font-semibold">Ngày sinh</th>
+                      <th className="py-1.5 px-2 font-semibold">Giới tính</th>
+                      <th className="py-1.5 px-2 font-semibold">Chi đoàn</th>
+                      <th className="py-1.5 px-2 font-semibold">SĐT</th>
+                      <th className="py-1.5 px-2 font-semibold text-right">Thao tác</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 text-sm">
+                    {filteredDoanVien.length === 0 ? (
+                      <tr>
+                        <td colSpan={6} className="py-6 px-3 text-center text-slate-500">
+                          <Database size={32} className="mx-auto mb-2 text-slate-300" />
+                          <p>Chưa có dữ liệu đoàn viên nào.</p>
+                        </td>
+                      </tr>
+                    ) : (
+                      filteredDoanVien.map((item) => (
+                        <tr key={item.id} className="hover:bg-slate-50/80 transition-colors group">
+                          <td className="py-1.5 px-2 font-medium text-slate-800">{item.hoTen}</td>
+                          <td className="py-1.5 px-2 text-slate-600">{item.ngaySinh}</td>
+                          <td className="py-1.5 px-2 text-slate-600">{item.gioiTinh}</td>
+                          <td className="py-1.5 px-2 text-slate-600">{item.chiDoan}</td>
+                          <td className="py-1.5 px-2 text-slate-600">{item.sdt}</td>
+                          <td className="py-1.5 px-2 text-right">
+                            <div className="flex items-center justify-end gap-1">
+                              <button
+                                onClick={() => {
+                                  setFormData(item);
+                                  setIsEditing(item.id);
+                                }}
+                                className="p-1.5 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                                title="Sửa"
+                              >
+                                <Edit2 size={16} />
+                              </button>
+                              <button
+                                onClick={() => setConfirmDelete({ id: item.id, type: 'doanvien' })}
+                                className="p-1.5 text-rose-600 hover:bg-rose-50 rounded-lg transition-colors"
+                                title="Xóa"
+                              >
+                                <Trash2 size={16} />
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
+
+              {/* Mobile View */}
+              <div className="md:hidden divide-y divide-slate-100">
+                {filteredDoanVien.length === 0 ? (
+                  <div className="py-6 px-3 text-center text-slate-500">
+                    <Database size={32} className="mx-auto mb-2 text-slate-300" />
+                    <p>Chưa có dữ liệu đoàn viên nào.</p>
+                  </div>
+                ) : (
+                  filteredDoanVien.map((item) => (
+                    <div key={item.id} className="p-3 space-y-2 hover:bg-slate-50/80 transition-colors">
+                      <div className="flex justify-between items-start">
+                        <div>
+                          <h3 className="font-bold text-slate-800 text-base">{item.hoTen}</h3>
+                          <p className="text-xs text-slate-500">{item.chiDoan}</p>
+                        </div>
+                      </div>
+                      <div className="flex justify-end gap-2 pt-1">
+                        <button
+                          onClick={() => {
+                            setFormData(item);
+                            setIsEditing(item.id);
+                          }}
+                          className="flex items-center gap-1 px-2.5 py-1.5 text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-lg transition-colors text-xs font-medium"
+                        >
+                          <Edit2 size={14} /> Sửa
+                        </button>
+                        <button
+                          onClick={() => setConfirmDelete({ id: item.id, type: 'doanvien' })}
+                          className="flex items-center gap-1 px-2.5 py-1.5 text-rose-600 bg-rose-50 hover:bg-rose-100 rounded-lg transition-colors text-xs font-medium"
+                        >
+                          <Trash2 size={14} /> Xóa
+                        </button>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* Tab Content: Tiêu chí TĐ */}
+          {activeTab === 'tieuchitd' && (
+            <div className="bg-white rounded-3xl shadow-sm border border-slate-200 overflow-hidden">
+              <div className="p-6 border-b border-slate-100 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-slate-50/50">
+                <div className="flex items-center gap-3">
+                  <div className="bg-emerald-100 p-2 rounded-xl text-emerald-600">
+                    <CheckCircle2 size={24} />
+                  </div>
+                  <div>
+                    <h2 className="text-xl font-bold text-slate-800">Tiêu chí Thi đua</h2>
+                    <p className="text-sm text-slate-500">Quản lý các tiêu chí đánh giá</p>
+                  </div>
+                </div>
+                
+                <div className="flex items-center gap-3 w-full sm:w-auto">
+                  <div className="relative flex-1 sm:w-64">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
+                    <input
+                      type="text"
+                      placeholder="Tìm kiếm tiêu chí..."
+                      value={searchTerm}
+                      onChange={(e) => setSearchTerm(e.target.value)}
+                      className="w-full pl-10 pr-4 py-2 rounded-xl border border-slate-200 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none transition-all"
+                    />
+                  </div>
+                  <button
+                    onClick={() => {
+                      setFormData({});
+                      setIsEditing('new_tieuchitd');
+                    }}
+                    className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-xl font-medium transition-colors whitespace-nowrap"
+                  >
+                    <Plus size={18} />
+                    <span className="hidden sm:inline">Thêm tiêu chí</span>
+                  </button>
+                </div>
+              </div>
+
+              <div className="hidden md:block overflow-x-auto">
+                <table className="w-full text-left border-collapse">
+                  <thead>
+                    <tr className="bg-slate-50 text-slate-500 text-sm border-b border-slate-200">
+                      <th className="py-1.5 px-2 font-semibold">Mã TC</th>
+                      <th className="py-1.5 px-2 font-semibold">Tên tiêu chí</th>
+                      <th className="py-1.5 px-2 font-semibold">Loại</th>
+                      <th className="py-1.5 px-2 font-semibold text-center">Điểm cộng</th>
+                      <th className="py-1.5 px-2 font-semibold text-center">Điểm trừ</th>
+                      <th className="py-1.5 px-2 font-semibold text-right">Thao tác</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 text-sm">
+                    {filteredTieuChi.length === 0 ? (
+                      <tr>
+                        <td colSpan={6} className="py-6 px-3 text-center text-slate-500">
+                          <Database size={32} className="mx-auto mb-2 text-slate-300" />
+                          <p>Chưa có dữ liệu tiêu chí nào.</p>
+                        </td>
+                      </tr>
+                    ) : (
+                      filteredTieuChi.map((item) => (
+                        <tr key={item.id} className="hover:bg-slate-50/80 transition-colors group">
+                          <td className="py-1.5 px-2 font-medium text-slate-800">{item.maTieuChi}</td>
+                          <td className="py-1.5 px-2 text-slate-600">{item.tenTieuChi}</td>
+                          <td className="py-1.5 px-2 text-slate-600">{item.loaiTieuChi}</td>
+                          <td className="py-1.5 px-2 text-center text-emerald-600 font-medium">+{item.diemCong}</td>
+                          <td className="py-1.5 px-2 text-center text-rose-600 font-medium">-{item.diemTru}</td>
+                          <td className="py-1.5 px-2 text-right">
+                            <div className="flex items-center justify-end gap-1">
+                              <button
+                                onClick={() => {
+                                  setFormData(item);
+                                  setIsEditing(item.id);
+                                }}
+                                className="p-1.5 text-emerald-600 hover:bg-emerald-50 rounded-lg transition-colors"
+                                title="Sửa"
+                              >
+                                <Edit2 size={16} />
+                              </button>
+                              <button
+                                onClick={() => setConfirmDelete({ id: item.id, type: 'tieuchitd' })}
+                                className="p-1.5 text-rose-600 hover:bg-rose-50 rounded-lg transition-colors"
+                                title="Xóa"
+                              >
+                                <Trash2 size={16} />
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
+
+              {/* Mobile View */}
+              <div className="md:hidden divide-y divide-slate-100">
+                {filteredTieuChi.length === 0 ? (
+                  <div className="py-6 px-3 text-center text-slate-500">
+                    <Database size={32} className="mx-auto mb-2 text-slate-300" />
+                    <p>Chưa có dữ liệu tiêu chí nào.</p>
+                  </div>
+                ) : (
+                  filteredTieuChi.map((item) => (
+                    <div key={item.id} className="p-3 space-y-2 hover:bg-slate-50/80 transition-colors">
+                      <div className="flex justify-between items-start">
+                        <div>
+                          <h3 className="font-bold text-slate-800 text-base">{item.tenTieuChi}</h3>
+                          <p className="text-xs text-slate-500">{item.maTieuChi}</p>
+                        </div>
+                      </div>
+                      <div className="flex justify-end gap-2 pt-1">
+                        <button
+                          onClick={() => {
+                            setFormData(item);
+                            setIsEditing(item.id);
+                          }}
+                          className="flex items-center gap-1 px-2.5 py-1.5 text-emerald-600 bg-emerald-50 hover:bg-emerald-100 rounded-lg transition-colors text-xs font-medium"
+                        >
+                          <Edit2 size={14} /> Sửa
+                        </button>
+                        <button
+                          onClick={() => setConfirmDelete({ id: item.id, type: 'tieuchitd' })}
+                          className="flex items-center gap-1 px-2.5 py-1.5 text-rose-600 bg-rose-50 hover:bg-rose-100 rounded-lg transition-colors text-xs font-medium"
+                        >
+                          <Trash2 size={14} /> Xóa
+                        </button>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* Tab Content: Phân công */}
+          {activeTab === 'phancong' && (
+            <div className="bg-white rounded-3xl shadow-sm border border-slate-200 overflow-hidden">
+              <div className="p-6 border-b border-slate-100 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-slate-50/50">
+                <div className="flex items-center gap-3">
+                  <div className="bg-amber-100 p-2 rounded-xl text-amber-600">
+                    <Edit2 size={24} />
+                  </div>
+                  <div>
+                    <h2 className="text-xl font-bold text-slate-800">Phân công chấm</h2>
+                    <p className="text-sm text-slate-500">Quản lý phân công chấm thi đua</p>
+                  </div>
+                </div>
+                
+                <div className="flex items-center gap-3 w-full sm:w-auto">
+                  <div className="relative flex-1 sm:w-64">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
+                    <input
+                      type="text"
+                      placeholder="Tìm kiếm phân công..."
+                      value={searchTerm}
+                      onChange={(e) => setSearchTerm(e.target.value)}
+                      className="w-full pl-10 pr-4 py-2 rounded-xl border border-slate-200 focus:ring-2 focus:ring-amber-500 focus:border-amber-500 outline-none transition-all"
+                    />
+                  </div>
+                  <button
+                    onClick={() => {
+                      setFormData({});
+                      setIsEditing('new_phancong');
+                    }}
+                    className="flex items-center gap-2 bg-amber-600 hover:bg-amber-700 text-white px-4 py-2 rounded-xl font-medium transition-colors whitespace-nowrap"
+                  >
+                    <Plus size={18} />
+                    <span className="hidden sm:inline">Thêm phân công</span>
+                  </button>
+                </div>
+              </div>
+
+              <div className="hidden md:block overflow-x-auto">
+                <table className="w-full text-left border-collapse">
+                  <thead>
+                    <tr className="bg-slate-50 text-slate-500 text-sm border-b border-slate-200">
+                      <th className="py-1.5 px-2 font-semibold">Học kỳ</th>
+                      <th className="py-1.5 px-2 font-semibold">Tuần</th>
+                      <th className="py-1.5 px-2 font-semibold">Lớp chấm</th>
+                      <th className="py-1.5 px-2 font-semibold">Chấm lớp</th>
+                      <th className="py-1.5 px-2 font-semibold text-right">Thao tác</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 text-sm">
+                    {filteredPhanCong.length === 0 ? (
+                      <tr>
+                        <td colSpan={5} className="py-6 px-3 text-center text-slate-500">
+                          <Database size={32} className="mx-auto mb-2 text-slate-300" />
+                          <p>Chưa có dữ liệu phân công nào.</p>
+                        </td>
+                      </tr>
+                    ) : (
+                      filteredPhanCong.map((item) => (
+                        <tr key={item.id} className="hover:bg-slate-50/80 transition-colors group">
+                          <td className="py-1.5 px-2 font-medium text-slate-800">{item.hocKy}</td>
+                          <td className="py-1.5 px-2 text-slate-600">{item.tuan}</td>
+                          <td className="py-1.5 px-2 text-slate-600">{item.lopCham}</td>
+                          <td className="py-1.5 px-2 text-slate-600">{item.chamLop}</td>
+                          <td className="py-1.5 px-2 text-right">
+                            <div className="flex items-center justify-end gap-1">
+                              <button
+                                onClick={() => {
+                                  setFormData(item);
+                                  setIsEditing(item.id);
+                                }}
+                                className="p-1.5 text-amber-600 hover:bg-amber-50 rounded-lg transition-colors"
+                                title="Sửa"
+                              >
+                                <Edit2 size={16} />
+                              </button>
+                              <button
+                                onClick={() => setConfirmDelete({ id: item.id, type: 'phancong' })}
+                                className="p-1.5 text-rose-600 hover:bg-rose-50 rounded-lg transition-colors"
+                                title="Xóa"
+                              >
+                                <Trash2 size={16} />
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
+
+              {/* Mobile View */}
+              <div className="md:hidden divide-y divide-slate-100">
+                {filteredPhanCong.length === 0 ? (
+                  <div className="py-6 px-3 text-center text-slate-500">
+                    <Database size={32} className="mx-auto mb-2 text-slate-300" />
+                    <p>Chưa có dữ liệu phân công nào.</p>
+                  </div>
+                ) : (
+                  filteredPhanCong.map((item) => (
+                    <div key={item.id} className="p-3 space-y-2 hover:bg-slate-50/80 transition-colors">
+                      <div className="flex justify-between items-start">
+                        <div>
+                          <h3 className="font-bold text-slate-800 text-base">{item.lopCham} chấm {item.chamLop}</h3>
+                          <p className="text-xs text-slate-500">HK: {item.hocKy} - Tuần: {item.tuan}</p>
+                        </div>
+                      </div>
+                      <div className="flex justify-end gap-2 pt-1">
+                        <button
+                          onClick={() => {
+                            setFormData(item);
+                            setIsEditing(item.id);
+                          }}
+                          className="flex items-center gap-1 px-2.5 py-1.5 text-amber-600 bg-amber-50 hover:bg-amber-100 rounded-lg transition-colors text-xs font-medium"
+                        >
+                          <Edit2 size={14} /> Sửa
+                        </button>
+                        <button
+                          onClick={() => setConfirmDelete({ id: item.id, type: 'phancong' })}
+                          className="flex items-center gap-1 px-2.5 py-1.5 text-rose-600 bg-rose-50 hover:bg-rose-100 rounded-lg transition-colors text-xs font-medium"
+                        >
+                          <Trash2 size={14} /> Xóa
+                        </button>
                       </div>
                     </div>
                   ))
@@ -1090,6 +1814,366 @@ export default function App() {
         )}
       </AnimatePresence>
 
+      {/* Edit/Add DoanVien Modal */}
+      <AnimatePresence>
+        {(isEditing && (isEditing === 'new_doanvien' || activeTab === 'doanvien')) && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="bg-white rounded-3xl shadow-2xl w-full max-w-2xl overflow-hidden max-h-[90vh] flex flex-col"
+            >
+              <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-slate-50">
+                <h3 className="text-xl font-bold text-slate-800">
+                  {isEditing === 'new_doanvien' ? 'Thêm Đoàn viên mới' : 'Cập nhật Đoàn viên'}
+                </h3>
+                <button 
+                  onClick={() => setIsEditing(null)}
+                  className="p-2 hover:bg-slate-200 rounded-full transition-colors"
+                >
+                  <X size={20} className="text-slate-500" />
+                </button>
+              </div>
+              
+              <div className="p-6 overflow-y-auto">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div className="md:col-span-2">
+                    <label className="block text-sm font-medium text-slate-700 mb-1">Họ và tên *</label>
+                    <input
+                      type="text"
+                      required
+                      value={formData.hoTen || ''}
+                      onChange={e => setFormData({...formData, hoTen: e.target.value})}
+                      className="w-full px-4 py-2 rounded-xl border border-slate-200 focus:ring-2 focus:ring-primary focus:border-primary outline-none"
+                      placeholder="VD: Nguyễn Văn A"
+                    />
+                  </div>
+                  
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">Ngày sinh</label>
+                    <input
+                      type="date"
+                      value={formData.ngaySinh || ''}
+                      onChange={e => setFormData({...formData, ngaySinh: e.target.value})}
+                      className="w-full px-4 py-2 rounded-xl border border-slate-200 focus:ring-2 focus:ring-primary focus:border-primary outline-none"
+                    />
+                  </div>
+                  
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">Giới tính</label>
+                    <select
+                      value={formData.gioiTinh || 'Nam'}
+                      onChange={e => setFormData({...formData, gioiTinh: e.target.value})}
+                      className="w-full px-4 py-2 rounded-xl border border-slate-200 focus:ring-2 focus:ring-primary focus:border-primary outline-none bg-white"
+                    >
+                      <option value="Nam">Nam</option>
+                      <option value="Nữ">Nữ</option>
+                    </select>
+                  </div>
+                  
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">Dân tộc</label>
+                    <input
+                      type="text"
+                      value={formData.danToc || ''}
+                      onChange={e => setFormData({...formData, danToc: e.target.value})}
+                      className="w-full px-4 py-2 rounded-xl border border-slate-200 focus:ring-2 focus:ring-primary focus:border-primary outline-none"
+                      placeholder="VD: Kinh"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">Đối tượng</label>
+                    <input
+                      type="text"
+                      value={formData.doiTuong || ''}
+                      onChange={e => setFormData({...formData, doiTuong: e.target.value})}
+                      className="w-full px-4 py-2 rounded-xl border border-slate-200 focus:ring-2 focus:ring-primary focus:border-primary outline-none"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">Đoàn viên</label>
+                    <select
+                      value={formData.doanVien || 'Có'}
+                      onChange={e => setFormData({...formData, doanVien: e.target.value})}
+                      className="w-full px-4 py-2 rounded-xl border border-slate-200 focus:ring-2 focus:ring-primary focus:border-primary outline-none bg-white"
+                    >
+                      <option value="Có">Có</option>
+                      <option value="Không">Không</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">Chi đoàn</label>
+                    <input
+                      type="text"
+                      value={formData.chiDoan || ''}
+                      onChange={e => setFormData({...formData, chiDoan: e.target.value})}
+                      className="w-full px-4 py-2 rounded-xl border border-slate-200 focus:ring-2 focus:ring-primary focus:border-primary outline-none"
+                      placeholder="VD: 10A1"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">Ngày vào đoàn</label>
+                    <input
+                      type="date"
+                      value={formData.ngayVaoDoan || ''}
+                      onChange={e => setFormData({...formData, ngayVaoDoan: e.target.value})}
+                      className="w-full px-4 py-2 rounded-xl border border-slate-200 focus:ring-2 focus:ring-primary focus:border-primary outline-none"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">Số điện thoại</label>
+                    <input
+                      type="text"
+                      value={formData.sdt || ''}
+                      onChange={e => setFormData({...formData, sdt: e.target.value})}
+                      className="w-full px-4 py-2 rounded-xl border border-slate-200 focus:ring-2 focus:ring-primary focus:border-primary outline-none"
+                    />
+                  </div>
+
+                  <div className="md:col-span-2">
+                    <label className="block text-sm font-medium text-slate-700 mb-1">Thông tin thêm</label>
+                    <textarea
+                      value={formData.thongTinThem || ''}
+                      onChange={e => setFormData({...formData, thongTinThem: e.target.value})}
+                      className="w-full px-4 py-2 rounded-xl border border-slate-200 focus:ring-2 focus:ring-primary focus:border-primary outline-none min-h-[100px]"
+                      placeholder="Ghi chú thêm..."
+                    />
+                  </div>
+                </div>
+              </div>
+              
+              <div className="p-6 border-t border-slate-100 bg-slate-50 flex justify-end gap-3">
+                <button
+                  onClick={() => setIsEditing(null)}
+                  className="px-6 py-2 rounded-xl font-medium text-slate-600 hover:bg-slate-200 transition-colors"
+                >
+                  Hủy
+                </button>
+                <button
+                  onClick={isEditing === 'new_doanvien' ? handleAddDoanVien : handleUpdateDoanVien}
+                  className="flex items-center gap-2 bg-primary hover:bg-primary/90 text-white px-6 py-2 rounded-xl font-medium transition-colors shadow-md"
+                >
+                  <Save size={18} />
+                  Lưu thay đổi
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Edit/Add TieuChiTD Modal */}
+      <AnimatePresence>
+        {(isEditing && (isEditing === 'new_tieuchitd' || activeTab === 'tieuchitd')) && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="bg-white rounded-3xl shadow-2xl w-full max-w-2xl overflow-hidden max-h-[90vh] flex flex-col"
+            >
+              <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-slate-50">
+                <h3 className="text-xl font-bold text-slate-800">
+                  {isEditing === 'new_tieuchitd' ? 'Thêm Tiêu chí mới' : 'Cập nhật Tiêu chí'}
+                </h3>
+                <button 
+                  onClick={() => setIsEditing(null)}
+                  className="p-2 hover:bg-slate-200 rounded-full transition-colors"
+                >
+                  <X size={20} className="text-slate-500" />
+                </button>
+              </div>
+              
+              <div className="p-6 overflow-y-auto">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">Mã tiêu chí *</label>
+                    <input
+                      type="text"
+                      required
+                      value={formData.maTieuChi || ''}
+                      onChange={e => setFormData({...formData, maTieuChi: e.target.value})}
+                      className="w-full px-4 py-2 rounded-xl border border-slate-200 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none"
+                      placeholder="VD: TC01"
+                    />
+                  </div>
+                  
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">Loại tiêu chí</label>
+                    <select
+                      value={formData.loaiTieuChi || 'Nề nếp'}
+                      onChange={e => setFormData({...formData, loaiTieuChi: e.target.value})}
+                      className="w-full px-4 py-2 rounded-xl border border-slate-200 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none bg-white"
+                    >
+                      <option value="Nề nếp">Nề nếp</option>
+                      <option value="Học tập">Học tập</option>
+                      <option value="Phong trào">Phong trào</option>
+                      <option value="Khác">Khác</option>
+                    </select>
+                  </div>
+
+                  <div className="md:col-span-2">
+                    <label className="block text-sm font-medium text-slate-700 mb-1">Tên tiêu chí *</label>
+                    <input
+                      type="text"
+                      required
+                      value={formData.tenTieuChi || ''}
+                      onChange={e => setFormData({...formData, tenTieuChi: e.target.value})}
+                      className="w-full px-4 py-2 rounded-xl border border-slate-200 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none"
+                      placeholder="VD: Đi học muộn"
+                    />
+                  </div>
+                  
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">Điểm cộng</label>
+                    <input
+                      type="number"
+                      min="0"
+                      value={formData.diemCong || 0}
+                      onChange={e => setFormData({...formData, diemCong: Number(e.target.value)})}
+                      className="w-full px-4 py-2 rounded-xl border border-slate-200 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">Điểm trừ</label>
+                    <input
+                      type="number"
+                      min="0"
+                      value={formData.diemTru || 0}
+                      onChange={e => setFormData({...formData, diemTru: Number(e.target.value)})}
+                      className="w-full px-4 py-2 rounded-xl border border-slate-200 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none"
+                    />
+                  </div>
+
+                  <div className="md:col-span-2">
+                    <label className="block text-sm font-medium text-slate-700 mb-1">Mô tả</label>
+                    <textarea
+                      value={formData.moTa || ''}
+                      onChange={e => setFormData({...formData, moTa: e.target.value})}
+                      className="w-full px-4 py-2 rounded-xl border border-slate-200 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none min-h-[80px]"
+                      placeholder="Mô tả chi tiết tiêu chí..."
+                    />
+                  </div>
+
+                  <div className="md:col-span-2">
+                    <label className="block text-sm font-medium text-slate-700 mb-1">Ghi chú</label>
+                    <textarea
+                      value={formData.ghiChu || ''}
+                      onChange={e => setFormData({...formData, ghiChu: e.target.value})}
+                      className="w-full px-4 py-2 rounded-xl border border-slate-200 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none min-h-[80px]"
+                      placeholder="Ghi chú thêm..."
+                    />
+                  </div>
+                </div>
+              </div>
+              
+              <div className="p-6 border-t border-slate-100 bg-slate-50 flex justify-end gap-3">
+                <button
+                  onClick={() => setIsEditing(null)}
+                  className="px-6 py-2 rounded-xl font-medium text-slate-600 hover:bg-slate-200 transition-colors"
+                >
+                  Hủy
+                </button>
+                <button
+                  onClick={isEditing === 'new_tieuchitd' ? handleAddTieuChiTD : handleUpdateTieuChiTD}
+                  className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white px-6 py-2 rounded-xl font-medium transition-colors shadow-md"
+                >
+                  <Save size={18} />
+                  Lưu thay đổi
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Edit/Add PhanCong Modal */}
+      <AnimatePresence>
+        {(isEditing && (isEditing === 'new_phancong' || activeTab === 'phancong')) && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="bg-white rounded-3xl shadow-2xl w-full max-w-md overflow-hidden max-h-[90vh] flex flex-col"
+            >
+              <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-slate-50">
+                <h3 className="text-xl font-bold text-slate-800">
+                  {isEditing === 'new_phancong' ? 'Thêm Phân công mới' : 'Cập nhật Phân công'}
+                </h3>
+                <button 
+                  onClick={() => setIsEditing(null)}
+                  className="p-2 hover:bg-slate-200 rounded-full transition-colors"
+                >
+                  <X size={20} className="text-slate-500" />
+                </button>
+              </div>
+              
+              <div className="p-6 overflow-y-auto space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">Tuần *</label>
+                  <input
+                    type="text"
+                    required
+                    value={formData.tuan || ''}
+                    onChange={e => setFormData({...formData, tuan: e.target.value})}
+                    className="w-full px-4 py-2 rounded-xl border border-slate-200 focus:ring-2 focus:ring-amber-500 focus:border-amber-500 outline-none"
+                    placeholder="VD: Tuần 1"
+                  />
+                </div>
+                
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">Lớp chấm *</label>
+                  <input
+                    type="text"
+                    required
+                    value={formData.lopCham || ''}
+                    onChange={e => setFormData({...formData, lopCham: e.target.value})}
+                    className="w-full px-4 py-2 rounded-xl border border-slate-200 focus:ring-2 focus:ring-amber-500 focus:border-amber-500 outline-none"
+                    placeholder="VD: 10A1"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">Chấm lớp *</label>
+                  <input
+                    type="text"
+                    required
+                    value={formData.chamLop || ''}
+                    onChange={e => setFormData({...formData, chamLop: e.target.value})}
+                    className="w-full px-4 py-2 rounded-xl border border-slate-200 focus:ring-2 focus:ring-amber-500 focus:border-amber-500 outline-none"
+                    placeholder="VD: 10A2"
+                  />
+                </div>
+              </div>
+              
+              <div className="p-6 border-t border-slate-100 bg-slate-50 flex justify-end gap-3">
+                <button
+                  onClick={() => setIsEditing(null)}
+                  className="px-6 py-2 rounded-xl font-medium text-slate-600 hover:bg-slate-200 transition-colors"
+                >
+                  Hủy
+                </button>
+                <button
+                  onClick={isEditing === 'new_phancong' ? handleAddPhanCong : handleUpdatePhanCong}
+                  className="flex items-center gap-2 bg-amber-600 hover:bg-amber-700 text-white px-6 py-2 rounded-xl font-medium transition-colors shadow-md"
+                >
+                  <Save size={18} />
+                  Lưu phân công
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
         {/* Confirm Delete Modal */}
         {confirmDelete && (
           <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center p-4 z-50">
@@ -1097,7 +2181,13 @@ export default function App() {
               <div className="p-6">
                 <h3 className="text-xl font-bold text-slate-800 mb-2">Xác nhận xóa</h3>
                 <p className="text-slate-600 mb-6">
-                  Bạn có chắc chắn muốn xóa {confirmDelete.type === 'qlchidoan' ? 'chi đoàn' : 'tài khoản'} này không? Hành động này không thể hoàn tác.
+                  Bạn có chắc chắn muốn xóa {
+                    confirmDelete.type === 'qlchidoan' ? 'chi đoàn' : 
+                    confirmDelete.type === 'taikhoan' ? 'tài khoản' :
+                    confirmDelete.type === 'doanvien' ? 'đoàn viên' :
+                    confirmDelete.type === 'tieuchitd' ? 'tiêu chí' :
+                    'phân công'
+                  } này không? Hành động này không thể hoàn tác.
                 </p>
                 <div className="flex items-center justify-end gap-3">
                   <button
@@ -1110,8 +2200,14 @@ export default function App() {
                     onClick={() => {
                       if (confirmDelete.type === 'qlchidoan') {
                         handleDeleteQlChiDoan(confirmDelete.id);
-                      } else {
+                      } else if (confirmDelete.type === 'taikhoan') {
                         handleDeleteTaiKhoan(confirmDelete.id);
+                      } else if (confirmDelete.type === 'doanvien') {
+                        handleDeleteDoanVien(confirmDelete.id);
+                      } else if (confirmDelete.type === 'tieuchitd') {
+                        handleDeleteTieuChiTD(confirmDelete.id);
+                      } else if (confirmDelete.type === 'phancong') {
+                        handleDeletePhanCong(confirmDelete.id);
                       }
                       setConfirmDelete(null);
                     }}

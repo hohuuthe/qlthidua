@@ -34,7 +34,9 @@ service cloud.firestore {
     }
 
     function isValidQlChiDoan(data) {
-      return hasOnlyAllowedFields(['tenchidoan', 'doanvien', 'thanhnien', 'tongso', 'phonghoc', 'bithu', 'thongtinthem', 'updatedAt']) &&
+      return hasOnlyAllowedFields(['namHoc', 'hocKy', 'tenchidoan', 'doanvien', 'thanhnien', 'tongso', 'phonghoc', 'bithu', 'thongtinthem', 'updatedAt']) &&
+             data.namHoc is string && data.namHoc.size() > 0 && data.namHoc.size() <= 20 &&
+             data.hocKy is string && data.hocKy.size() > 0 && data.hocKy.size() <= 20 &&
              data.tenchidoan is string && data.tenchidoan.size() > 0 && data.tenchidoan.size() <= 100 &&
              (!('doanvien' in data) || (data.doanvien is number && data.doanvien >= 0)) &&
              (!('thanhnien' in data) || (data.thanhnien is number && data.thanhnien >= 0)) &&
@@ -53,6 +55,44 @@ service cloud.firestore {
              (!('chiDoan' in data) || (data.chiDoan is string && data.chiDoan.size() <= 100));
     }
 
+    function isValidDoanVien(data) {
+      return hasOnlyAllowedFields(['namHoc', 'hocKy', 'hoTen', 'ngaySinh', 'gioiTinh', 'danToc', 'doiTuong', 'doanVien', 'chiDoan', 'ngayVaoDoan', 'sdt', 'thongTinThem', 'updatedAt']) &&
+             data.namHoc is string && data.namHoc.size() > 0 && data.namHoc.size() <= 20 &&
+             data.hocKy is string && data.hocKy.size() > 0 && data.hocKy.size() <= 20 &&
+             data.hoTen is string && data.hoTen.size() > 0 && data.hoTen.size() <= 100 &&
+             (!('ngaySinh' in data) || (data.ngaySinh is string && data.ngaySinh.size() <= 50)) &&
+             (!('gioiTinh' in data) || (data.gioiTinh is string && data.gioiTinh.size() <= 20)) &&
+             (!('danToc' in data) || (data.danToc is string && data.danToc.size() <= 50)) &&
+             (!('doiTuong' in data) || (data.doiTuong is string && data.doiTuong.size() <= 50)) &&
+             (!('doanVien' in data) || data.doanVien is bool) &&
+             data.chiDoan is string && data.chiDoan.size() <= 100 &&
+             (!('ngayVaoDoan' in data) || (data.ngayVaoDoan is string && data.ngayVaoDoan.size() <= 50)) &&
+             (!('sdt' in data) || (data.sdt is string && data.sdt.size() <= 20)) &&
+             (!('thongTinThem' in data) || (data.thongTinThem is string && data.thongTinThem.size() <= 500));
+    }
+
+    function isValidTieuChiTD(data) {
+      return hasOnlyAllowedFields(['namHoc', 'hocKy', 'maTieuChi', 'tenTieuChi', 'moTa', 'loaiTieuChi', 'diemTru', 'diemCong', 'ghiChu', 'updatedAt']) &&
+             data.namHoc is string && data.namHoc.size() > 0 && data.namHoc.size() <= 20 &&
+             data.hocKy is string && data.hocKy.size() > 0 && data.hocKy.size() <= 20 &&
+             data.maTieuChi is string && data.maTieuChi.size() > 0 && data.maTieuChi.size() <= 50 &&
+             data.tenTieuChi is string && data.tenTieuChi.size() > 0 && data.tenTieuChi.size() <= 200 &&
+             (!('moTa' in data) || (data.moTa is string && data.moTa.size() <= 500)) &&
+             (!('loaiTieuChi' in data) || (data.loaiTieuChi is string && data.loaiTieuChi.size() <= 100)) &&
+             (!('diemTru' in data) || data.diemTru is number) &&
+             (!('diemCong' in data) || data.diemCong is number) &&
+             (!('ghiChu' in data) || (data.ghiChu is string && data.ghiChu.size() <= 500));
+    }
+
+    function isValidPhanCong(data) {
+      return hasOnlyAllowedFields(['namHoc', 'hocKy', 'tuan', 'lopCham', 'chamLop', 'updatedAt']) &&
+             data.namHoc is string && data.namHoc.size() > 0 && data.namHoc.size() <= 20 &&
+             data.hocKy is string && data.hocKy.size() > 0 && data.hocKy.size() <= 20 &&
+             data.tuan is string && data.tuan.size() > 0 && data.tuan.size() <= 50 &&
+             data.lopCham is string && data.lopCham.size() > 0 && data.lopCham.size() <= 100 &&
+             data.chamLop is string && data.chamLop.size() > 0 && data.chamLop.size() <= 100;
+    }
+
     match /qlchidoan/{id} {
       allow read: if true;
       allow create: if isValidQlChiDoan(request.resource.data);
@@ -64,6 +104,27 @@ service cloud.firestore {
       allow read: if true;
       allow create: if isValidTaiKhoan(request.resource.data);
       allow update: if isValidTaiKhoan(request.resource.data);
+      allow delete: if true;
+    }
+
+    match /doanvien/{id} {
+      allow read: if true;
+      allow create: if isValidDoanVien(request.resource.data);
+      allow update: if isValidDoanVien(request.resource.data);
+      allow delete: if true;
+    }
+
+    match /tieuchitd/{id} {
+      allow read: if true;
+      allow create: if isValidTieuChiTD(request.resource.data);
+      allow update: if isValidTieuChiTD(request.resource.data);
+      allow delete: if true;
+    }
+
+    match /phancong/{id} {
+      allow read: if true;
+      allow create: if isValidPhanCong(request.resource.data);
+      allow update: if isValidPhanCong(request.resource.data);
       allow delete: if true;
     }
   }

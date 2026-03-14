@@ -29,6 +29,54 @@
         "updatedAt": { "type": "string", "format": "date-time", "description": "Thời gian cập nhật cuối" }
       },
       "required": ["username", "password", "fullName", "role"]
+    },
+    "DoanVien": {
+      "title": "Đoàn viên",
+      "description": "Thông tin quản lý đoàn viên",
+      "type": "object",
+      "properties": {
+        "hoTen": { "type": "string", "description": "Họ tên" },
+        "ngaySinh": { "type": "string", "description": "Ngày sinh" },
+        "gioiTinh": { "type": "string", "description": "Giới tính" },
+        "danToc": { "type": "string", "description": "Dân tộc" },
+        "doiTuong": { "type": "string", "description": "Đối tượng" },
+        "doanVien": { "type": "boolean", "description": "Đã là đoàn viên chưa" },
+        "chiDoan": { "type": "string", "description": "Chi đoàn" },
+        "ngayVaoDoan": { "type": "string", "description": "Ngày vào đoàn" },
+        "sdt": { "type": "string", "description": "Số điện thoại" },
+        "thongTinThem": { "type": "string", "description": "Thông tin thêm" },
+        "updatedAt": { "type": "string", "format": "date-time", "description": "Thời gian cập nhật cuối" }
+      },
+      "required": ["hoTen", "chiDoan"]
+    },
+    "TieuChiTD": {
+      "title": "Tiêu chí thi đua",
+      "description": "Thông tin tiêu chí thi đua",
+      "type": "object",
+      "properties": {
+        "maTieuChi": { "type": "string", "description": "Mã tiêu chí" },
+        "tenTieuChi": { "type": "string", "description": "Tên tiêu chí" },
+        "moTa": { "type": "string", "description": "Mô tả" },
+        "loaiTieuChi": { "type": "string", "description": "Loại tiêu chí" },
+        "diemTru": { "type": "number", "description": "Điểm trừ" },
+        "diemCong": { "type": "number", "description": "Điểm cộng" },
+        "ghiChu": { "type": "string", "description": "Ghi chú" },
+        "updatedAt": { "type": "string", "format": "date-time", "description": "Thời gian cập nhật cuối" }
+      },
+      "required": ["maTieuChi", "tenTieuChi"]
+    },
+    "PhanCong": {
+      "title": "Phân công",
+      "description": "Thông tin phân công chấm chéo",
+      "type": "object",
+      "properties": {
+        "hocKy": { "type": "string", "description": "Học kỳ" },
+        "tuan": { "type": "string", "description": "Tuần" },
+        "lopCham": { "type": "string", "description": "Lớp chấm" },
+        "chamLop": { "type": "string", "description": "Chấm lớp" },
+        "updatedAt": { "type": "string", "format": "date-time", "description": "Thời gian cập nhật cuối" }
+      },
+      "required": ["hocKy", "tuan", "lopCham", "chamLop"]
     }
   },
   "firestore": {
@@ -39,6 +87,18 @@
     "/taikhoan/{id}": {
       "schema": "TaiKhoan",
       "description": "Danh sách tài khoản"
+    },
+    "/doanvien/{id}": {
+      "schema": "DoanVien",
+      "description": "Danh sách đoàn viên"
+    },
+    "/tieuchitd/{id}": {
+      "schema": "TieuChiTD",
+      "description": "Danh sách tiêu chí thi đua"
+    },
+    "/phancong/{id}": {
+      "schema": "PhanCong",
+      "description": "Danh sách phân công chấm chéo"
     }
   }
 }
