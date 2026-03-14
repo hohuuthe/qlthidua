@@ -16,23 +16,18 @@ import {
   Database, 
   CheckCircle2, 
   AlertCircle,
-  Phone,
-  User,
   GraduationCap,
   ShieldCheck,
   Search,
   LogIn,
-  LogOut
+  LogOut,
+  UserCog
 } from 'lucide-react';
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
-import { QlChiDoan, UserProfile } from './types';
+import { QlChiDoan, TaiKhoan } from './types';
 import { 
-  auth, 
   db, 
-  googleProvider, 
-  signInWithPopup, 
-  signOut, 
   collection, 
   doc, 
   setDoc, 
@@ -41,16 +36,15 @@ import {
   onSnapshot, 
   query, 
   orderBy,
-  getDocFromServer
+  getDocs,
+  where
 } from './firebase';
-import { onAuthStateChanged } from 'firebase/auth';
 import { serverTimestamp } from 'firebase/firestore';
 
 function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
 
-// Error Handler for Firestore Permissions
 enum OperationType {
   CREATE = 'create',
   UPDATE = 'update',
@@ -64,38 +58,12 @@ interface FirestoreErrorInfo {
   error: string;
   operationType: OperationType;
   path: string | null;
-  authInfo: {
-    userId: string | undefined;
-    email: string | undefined;
-    emailVerified: boolean | undefined;
-    isAnonymous: boolean | undefined;
-    tenantId: string | null | undefined;
-    providerInfo: {
-      providerId: string;
-      displayName: string | null;
-      email: string | null;
-      photoUrl: string | null;
-    }[];
-  }
 }
 
-interface ErrorBoundaryProps {
-  children: React.ReactNode;
-}
+class ErrorBoundary extends Component<{children: React.ReactNode}, {hasError: boolean, error: any}> {
+  public state = { hasError: false, error: null };
 
-interface ErrorBoundaryState {
-  hasError: boolean;
-  error: any;
-}
-
-class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
-  public state: ErrorBoundaryState = { hasError: false, error: null };
-
-  constructor(props: ErrorBoundaryProps) {
-    super(props);
-  }
-
-  static getDerivedStateFromError(error: any): ErrorBoundaryState {
+  static getDerivedStateFromError(error: any) {
     return { hasError: true, error };
   }
 
@@ -134,37 +102,61 @@ class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
 }
 
 export default function App() {
-  const [user, setUser] = useState<UserProfile | null>(null);
-  const [isAuthReady, setIsAuthReady] = useState(false);
+  const [currentUser, setCurrentUser] = useState<TaiKhoan | null>(null);
+  const [activeTab, setActiveTab] = useState<'qlchidoan' | 'taikhoan'>('qlchidoan');
+  
   const [qlChiDoan, setQlChiDoan] = useState<QlChiDoan[]>([]);
+  const [taiKhoanList, setTaiKhoanList] = useState<TaiKhoan[]>([]);
+  
   const [isEditing, setIsEditing] = useState<string | null>(null);
-  const [formData, setFormData] = useState<Partial<QlChiDoan>>({});
+  const [formData, setFormData] = useState<any>({});
   const [searchTerm, setSearchTerm] = useState('');
   
+  const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
+  const [loginForm, setLoginForm] = useState({ username: '', password: '' });
+
   const [status, setStatus] = useState<{ type: 'success' | 'error' | 'loading' | null, message: string }>({
     type: null,
     message: ''
   });
 
-  // Auth Listener (Bypassed)
+  const handleFirestoreError = (error: any, operation: OperationType, path: string) => {
+    const errInfo: FirestoreErrorInfo = {
+      error: error instanceof Error ? error.message : String(error),
+      operationType: operation,
+      path
+    };
+    console.error('Firestore Error: ', JSON.stringify(errInfo));
+    setStatus({ type: 'error', message: 'Đã xảy ra lỗi khi truy cập dữ liệu.' });
+  };
+
+  // Seed Admin Account if not exists
   useEffect(() => {
-    setUser({
-      uid: 'mock-user-id',
-      email: 'admin@example.com',
-      displayName: 'Admin (Bypassed)',
-      photoURL: '',
-      isAdmin: true
-    });
-    setIsAuthReady(true);
+    const seedAdmin = async () => {
+      try {
+        const q = query(collection(db, 'taikhoan'), where('username', '==', 'Admin'));
+        const snapshot = await getDocs(q);
+        if (snapshot.empty) {
+          const id = Date.now().toString();
+          await setDoc(doc(db, 'taikhoan', id), {
+            username: 'Admin',
+            password: '123',
+            fullName: 'Quản trị viên hệ thống',
+            role: 'Admin',
+            chiDoan: '',
+            updatedAt: serverTimestamp()
+          });
+          console.log('Đã tạo tài khoản Admin mặc định.');
+        }
+      } catch (error) {
+        console.error('Lỗi khi tạo tài khoản Admin:', error);
+      }
+    };
+    seedAdmin();
   }, []);
 
-  // Firestore Real-time Listener for QlChiDoan
+  // Fetch QlChiDoan (Always visible)
   useEffect(() => {
-    if (!isAuthReady || !user) {
-      setQlChiDoan([]);
-      return;
-    }
-
     const q = query(collection(db, 'qlchidoan'), orderBy('tenchidoan', 'asc'));
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const data = snapshot.docs.map(doc => ({
@@ -175,91 +167,64 @@ export default function App() {
     }, (error) => {
       handleFirestoreError(error, OperationType.LIST, 'qlchidoan');
     });
-
     return () => unsubscribe();
-  }, [isAuthReady, user]);
+  }, []);
 
-  const handleFirestoreError = (error: any, operation: OperationType, path: string) => {
-    const errInfo: FirestoreErrorInfo = {
-      error: error instanceof Error ? error.message : String(error),
-      authInfo: {
-        userId: auth.currentUser?.uid,
-        email: auth.currentUser?.email,
-        emailVerified: auth.currentUser?.emailVerified,
-        isAnonymous: auth.currentUser?.isAnonymous,
-        tenantId: auth.currentUser?.tenantId,
-        providerInfo: auth.currentUser?.providerData.map(provider => ({
-          providerId: provider.providerId,
-          displayName: provider.displayName,
-          email: provider.email,
-          photoUrl: provider.photoURL
-        })) || []
-      },
-      operationType: operation,
-      path
-    };
-    
-    console.error('Firestore Error: ', JSON.stringify(errInfo));
-    
-    let message = 'Đã xảy ra lỗi khi truy cập dữ liệu.';
-    if (error.code === 'permission-denied') {
-      message = 'Bạn không có quyền thực hiện thao tác này.';
+  // Fetch TaiKhoan (Only if Admin)
+  useEffect(() => {
+    if (currentUser?.role !== 'Admin') {
+      setTaiKhoanList([]);
+      return;
     }
-    setStatus({ type: 'error', message });
-    
-    // Throw for agent diagnosis if it's a permission error
-    if (error.code === 'permission-denied') {
-      throw new Error(JSON.stringify(errInfo));
-    }
-  };
+    const q = query(collection(db, 'taikhoan'), orderBy('username', 'asc'));
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const data = snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      })) as TaiKhoan[];
+      setTaiKhoanList(data);
+    }, (error) => {
+      handleFirestoreError(error, OperationType.LIST, 'taikhoan');
+    });
+    return () => unsubscribe();
+  }, [currentUser]);
 
-  const handleLogin = async () => {
+  const handleLogin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setStatus({ type: 'loading', message: 'Đang đăng nhập...' });
     try {
-      await signInWithPopup(auth, googleProvider);
-      setStatus({ type: 'success', message: 'Đăng nhập thành công!' });
-    } catch (error: any) {
-      setStatus({ type: 'error', message: 'Đăng nhập thất bại: ' + error.message });
-    }
-  };
-
-  const handleLogout = async () => {
-    try {
-      await signOut(auth);
-      setStatus({ type: 'success', message: 'Đã đăng xuất.' });
-    } catch (error: any) {
-      setStatus({ type: 'error', message: 'Đăng xuất thất bại.' });
-    }
-  };
-
-
-  const handleDeleteQlChiDoan = async (id: string) => {
-    if (!user?.isAdmin) return;
-    setStatus({ type: 'loading', message: 'Đang xóa...' });
-    try {
-      await deleteDoc(doc(db, 'qlchidoan', id));
-      setStatus({ type: 'success', message: 'Đã xóa.' });
-    } catch (error: any) {
-      handleFirestoreError(error, OperationType.DELETE, `qlchidoan/${id}`);
-    }
-  };
-
-  const handleDeleteAllQlChiDoan = async () => {
-    if (!user?.isAdmin) return;
-    
-    setStatus({ type: 'loading', message: 'Đang xóa tất cả dữ liệu...' });
-    try {
-      for (const item of qlChiDoan) {
-        await deleteDoc(doc(db, 'qlchidoan', item.id));
+      const q = query(
+        collection(db, 'taikhoan'), 
+        where('username', '==', loginForm.username),
+        where('password', '==', loginForm.password)
+      );
+      const snapshot = await getDocs(q);
+      
+      if (!snapshot.empty) {
+        const userData = { id: snapshot.docs[0].id, ...snapshot.docs[0].data() } as TaiKhoan;
+        setCurrentUser(userData);
+        setIsLoginModalOpen(false);
+        setLoginForm({ username: '', password: '' });
+        setStatus({ type: 'success', message: 'Đăng nhập thành công!' });
+      } else {
+        setStatus({ type: 'error', message: 'Tên đăng nhập hoặc mật khẩu không đúng.' });
       }
-      setStatus({ type: 'success', message: 'Đã xóa tất cả dữ liệu.' });
     } catch (error: any) {
-      handleFirestoreError(error, OperationType.DELETE, 'qlchidoan');
+      setStatus({ type: 'error', message: 'Lỗi đăng nhập: ' + error.message });
     }
   };
 
+  const handleLogout = () => {
+    setCurrentUser(null);
+    setActiveTab('qlchidoan');
+    setStatus({ type: 'success', message: 'Đã đăng xuất.' });
+  };
+
+  // --- QL Chi Đoàn CRUD ---
   const handleAddQlChiDoan = async () => {
+    if (!currentUser) return;
     const data = formData as QlChiDoan;
-    if (!data.tenchidoan || !user?.isAdmin) return;
+    if (!data.tenchidoan) return;
     
     setStatus({ type: 'loading', message: 'Đang lưu...' });
     try {
@@ -283,7 +248,7 @@ export default function App() {
   };
 
   const handleUpdateQlChiDoan = async () => {
-    if (!isEditing || !user?.isAdmin) return;
+    if (!isEditing || !currentUser) return;
     const data = formData as QlChiDoan;
     
     setStatus({ type: 'loading', message: 'Đang cập nhật...' });
@@ -307,20 +272,97 @@ export default function App() {
     }
   };
 
-  if (!isAuthReady) {
-    return (
-      <div className="min-h-screen bg-slate-50 flex items-center justify-center">
-        <div className="animate-spin rounded-full h-12 w-12 border-4 border-primary border-t-transparent" />
-      </div>
-    );
-  }
+  const handleDeleteQlChiDoan = async (id: string) => {
+    if (!currentUser) return;
+    setStatus({ type: 'loading', message: 'Đang xóa...' });
+    try {
+      await deleteDoc(doc(db, 'qlchidoan', id));
+      setStatus({ type: 'success', message: 'Đã xóa.' });
+    } catch (error: any) {
+      handleFirestoreError(error, OperationType.DELETE, `qlchidoan/${id}`);
+    }
+  };
+
+  // --- Tài Khoản CRUD ---
+  const handleAddTaiKhoan = async () => {
+    if (currentUser?.role !== 'Admin') return;
+    const data = formData as TaiKhoan;
+    if (!data.username || !data.password || !data.fullName || !data.role) return;
+    
+    setStatus({ type: 'loading', message: 'Đang lưu...' });
+    try {
+      // Check if username exists
+      const q = query(collection(db, 'taikhoan'), where('username', '==', data.username));
+      const snapshot = await getDocs(q);
+      if (!snapshot.empty) {
+        setStatus({ type: 'error', message: 'Tên đăng nhập đã tồn tại!' });
+        return;
+      }
+
+      const id = Date.now().toString();
+      await setDoc(doc(db, 'taikhoan', id), {
+        username: data.username,
+        password: data.password,
+        fullName: data.fullName,
+        role: data.role,
+        chiDoan: data.chiDoan || '',
+        updatedAt: serverTimestamp()
+      });
+      setStatus({ type: 'success', message: 'Đã thêm tài khoản thành công!' });
+      setIsEditing(null);
+      setFormData({});
+    } catch (error: any) {
+      handleFirestoreError(error, OperationType.CREATE, 'taikhoan');
+    }
+  };
+
+  const handleUpdateTaiKhoan = async () => {
+    if (!isEditing || currentUser?.role !== 'Admin') return;
+    const data = formData as TaiKhoan;
+    
+    setStatus({ type: 'loading', message: 'Đang cập nhật...' });
+    try {
+      const { id, ...dataToUpdate } = data;
+      await updateDoc(doc(db, 'taikhoan', isEditing), {
+        ...dataToUpdate,
+        chiDoan: data.chiDoan || '',
+        updatedAt: serverTimestamp()
+      });
+      setStatus({ type: 'success', message: 'Cập nhật tài khoản thành công!' });
+      setIsEditing(null);
+      setFormData({});
+    } catch (error: any) {
+      handleFirestoreError(error, OperationType.UPDATE, `taikhoan/${isEditing}`);
+    }
+  };
+
+  const handleDeleteTaiKhoan = async (id: string) => {
+    if (currentUser?.role !== 'Admin') return;
+    setStatus({ type: 'loading', message: 'Đang xóa...' });
+    try {
+      await deleteDoc(doc(db, 'taikhoan', id));
+      setStatus({ type: 'success', message: 'Đã xóa tài khoản.' });
+    } catch (error: any) {
+      handleFirestoreError(error, OperationType.DELETE, `taikhoan/${id}`);
+    }
+  };
+
+  const filteredQlChiDoan = qlChiDoan.filter(item => 
+    item.tenchidoan.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    item.bithu.toLowerCase().includes(searchTerm.toLowerCase())
+  );
+
+  const filteredTaiKhoan = taiKhoanList.filter(item => 
+    item.username.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    item.fullName.toLowerCase().includes(searchTerm.toLowerCase())
+  );
 
   return (
     <ErrorBoundary>
       <div className="min-h-screen bg-slate-50 flex flex-col">
       {/* Header */}
       <header className="bg-primary text-white shadow-lg">
-        <div className="max-w-7xl mx-auto px-4 py-6 flex flex-col md:flex-row justify-between items-center gap-4">
+        <div className="max-w-7xl mx-auto px-4 py-4 flex flex-col md:flex-row justify-between items-center gap-4">
           <div className="flex items-center gap-3">
             <div className="bg-white/20 p-2 rounded-lg">
               <GraduationCap size={32} />
@@ -332,18 +374,27 @@ export default function App() {
           </div>
 
           <div className="flex items-center gap-4">
-            {user ? (
+            {currentUser ? (
               <div className="flex items-center gap-3 bg-white/10 p-1 pr-4 rounded-full backdrop-blur-sm">
-                <img src={user.photoURL || 'https://picsum.photos/seed/admin/32/32'} alt={user.displayName} className="w-8 h-8 rounded-full border border-white/20" referrerPolicy="no-referrer" />
-                <div className="hidden sm:block">
-                  <p className="text-xs font-bold leading-none">{user.displayName}</p>
-                  <p className="text-[10px] text-blue-200">{user.isAdmin ? 'Quản trị viên' : 'Người dùng'}</p>
+                <div className="w-8 h-8 rounded-full bg-blue-500 flex items-center justify-center font-bold border border-white/20">
+                  {currentUser.fullName.charAt(0).toUpperCase()}
                 </div>
+                <div className="hidden sm:block">
+                  <p className="text-xs font-bold leading-none">{currentUser.fullName}</p>
+                  <p className="text-[10px] text-blue-200">{currentUser.role}</p>
+                </div>
+                <button 
+                  onClick={handleLogout}
+                  className="p-2 hover:bg-white/20 rounded-full transition-colors ml-2"
+                  title="Đăng xuất"
+                >
+                  <LogOut size={18} />
+                </button>
               </div>
             ) : (
               <button
-                onClick={handleLogin}
-                className="flex items-center gap-2 bg-white text-primary px-6 py-2 rounded-xl font-bold transition-all shadow-md active:scale-95"
+                onClick={() => setIsLoginModalOpen(true)}
+                className="flex items-center gap-2 bg-white text-primary px-6 py-2 rounded-xl font-bold transition-all shadow-md active:scale-95 hover:bg-blue-50"
               >
                 <LogIn size={18} />
                 Đăng nhập
@@ -351,252 +402,457 @@ export default function App() {
             )}
           </div>
         </div>
+        
+        {/* Tabs */}
+        {currentUser && (
+          <div className="max-w-7xl mx-auto px-4 flex gap-2 mt-2">
+            <button
+              onClick={() => setActiveTab('qlchidoan')}
+              className={cn(
+                "px-6 py-3 rounded-t-xl font-medium transition-colors flex items-center gap-2",
+                activeTab === 'qlchidoan' ? "bg-slate-50 text-primary" : "bg-white/10 text-white hover:bg-white/20"
+              )}
+            >
+              <Users size={18} />
+              Quản lý chi đoàn
+            </button>
+            {currentUser.role === 'Admin' && (
+              <button
+                onClick={() => setActiveTab('taikhoan')}
+                className={cn(
+                  "px-6 py-3 rounded-t-xl font-medium transition-colors flex items-center gap-2",
+                  activeTab === 'taikhoan' ? "bg-slate-50 text-primary" : "bg-white/10 text-white hover:bg-white/20"
+                )}
+              >
+                <UserCog size={18} />
+                Quản lý tài khoản
+              </button>
+            )}
+          </div>
+        )}
       </header>
 
       {/* Main Content */}
       <main className="flex-1 max-w-7xl w-full mx-auto p-4 md:p-6">
-        {!user ? (
-          <div className="h-full flex flex-col items-center justify-center py-20 text-center space-y-6">
-            <div className="bg-blue-100 p-6 rounded-3xl text-primary">
-              <ShieldCheck size={64} />
-            </div>
-            <div className="max-w-md">
-              <h2 className="text-3xl font-bold text-slate-800 mb-2">Yêu cầu đăng nhập</h2>
-              <p className="text-slate-500">Vui lòng đăng nhập bằng tài khoản Google để xem và quản lý dữ liệu thi đua của trường.</p>
-            </div>
-            <button
-              onClick={handleLogin}
-              className="flex items-center gap-3 bg-primary hover:bg-primary/90 text-white px-10 py-4 rounded-2xl font-bold text-lg transition-all shadow-xl active:scale-95"
-            >
-              <LogIn size={24} />
-              Đăng nhập ngay
-            </button>
-          </div>
-        ) : (
-          <div className="space-y-6">
-            {/* Status Message */}
-            <AnimatePresence>
-              {status.type && (
-                <motion.div
-                  initial={{ opacity: 0, y: -20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: -20 }}
-                  className={cn(
-                    "p-4 rounded-2xl flex items-center gap-3 shadow-sm border",
-                    status.type === 'success' ? "bg-emerald-50 text-emerald-700 border-emerald-100" :
-                    status.type === 'error' ? "bg-rose-50 text-rose-700 border-rose-100" :
-                    "bg-blue-50 text-blue-700 border-blue-100"
-                  )}
-                >
-                  {status.type === 'success' ? <CheckCircle2 size={20} /> : 
-                   status.type === 'error' ? <AlertCircle size={20} /> : 
-                   <div className="animate-spin rounded-full h-5 w-5 border-2 border-blue-500 border-t-transparent" />}
-                  <span className="font-medium">{status.message}</span>
-                  <button onClick={() => setStatus({ type: null, message: '' })} className="ml-auto p-1 hover:bg-black/5 rounded-lg">
-                    <X size={16} />
-                  </button>
-                </motion.div>
-              )}
-            </AnimatePresence>
+        <div className="space-y-6">
+          {/* Status Message */}
+          <AnimatePresence>
+            {status.type && (
+              <motion.div
+                initial={{ opacity: 0, y: -20 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -20 }}
+                className={cn(
+                  "p-4 rounded-2xl flex items-center gap-3 shadow-sm border",
+                  status.type === 'success' ? "bg-emerald-50 text-emerald-700 border-emerald-100" :
+                  status.type === 'error' ? "bg-rose-50 text-rose-700 border-rose-100" :
+                  "bg-blue-50 text-blue-700 border-blue-100"
+                )}
+              >
+                {status.type === 'success' ? <CheckCircle2 size={20} /> : 
+                 status.type === 'error' ? <AlertCircle size={20} /> : 
+                 <div className="animate-spin rounded-full h-5 w-5 border-2 border-blue-500 border-t-transparent" />}
+                <span className="font-medium">{status.message}</span>
+                <button onClick={() => setStatus({ type: null, message: '' })} className="ml-auto p-1 hover:bg-black/5 rounded-lg">
+                  <X size={16} />
+                </button>
+              </motion.div>
+            )}
+          </AnimatePresence>
 
-            {/* Search and Add Header */}
-            <div className="flex flex-col gap-4">
-              <div className="flex flex-col md:flex-row gap-4 justify-between items-center bg-white p-4 rounded-2xl shadow-sm border border-slate-200">
-                <div className="relative w-full md:w-96">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
-                  <input
-                    type="text"
-                    placeholder="Tìm kiếm chi đoàn, bí thư..."
-                    className="w-full pl-10 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all"
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                  />
+          {/* Tab Content: QL Chi Đoàn */}
+          {activeTab === 'qlchidoan' && (
+            <div className="bg-white rounded-3xl shadow-sm border border-slate-200 overflow-hidden">
+              <div className="p-6 border-b border-slate-100 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-slate-50/50">
+                <div className="flex items-center gap-3">
+                  <div className="bg-blue-100 p-2 rounded-xl text-primary">
+                    <Users size={24} />
+                  </div>
+                  <div>
+                    <h2 className="text-xl font-bold text-slate-800">Danh sách Chi đoàn</h2>
+                    <p className="text-sm text-slate-500">Quản lý thông tin các chi đoàn trong trường</p>
+                  </div>
                 </div>
-                {user.isAdmin && (
-                  <div className="flex gap-2">
-                    <button
-                      onClick={handleDeleteAllQlChiDoan}
-                      className="w-full md:w-auto flex items-center justify-center gap-2 bg-red-600 hover:bg-red-700 text-white px-6 py-2 rounded-xl font-semibold transition-all shadow-md active:scale-95"
-                    >
-                      <Trash2 size={20} />
-                      Xóa tất cả
-                    </button>
+                
+                <div className="flex items-center gap-3 w-full sm:w-auto">
+                  <div className="relative flex-1 sm:w-64">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
+                    <input
+                      type="text"
+                      placeholder="Tìm kiếm chi đoàn..."
+                      value={searchTerm}
+                      onChange={(e) => setSearchTerm(e.target.value)}
+                      className="w-full pl-10 pr-4 py-2 rounded-xl border border-slate-200 focus:ring-2 focus:ring-primary focus:border-primary outline-none transition-all"
+                    />
+                  </div>
+                  {currentUser && (
                     <button
                       onClick={() => {
-                        setIsEditing('new-member');
                         setFormData({});
+                        setIsEditing('new_qlchidoan');
                       }}
-                      className="w-full md:w-auto flex items-center justify-center gap-2 bg-primary hover:bg-primary/90 text-white px-6 py-2 rounded-xl font-semibold transition-all shadow-md active:scale-95"
+                      className="flex items-center gap-2 bg-primary hover:bg-primary/90 text-white px-4 py-2 rounded-xl font-medium transition-colors whitespace-nowrap"
                     >
-                      <Plus size={20} />
-                      Thêm chi đoàn
+                      <Plus size={18} />
+                      <span className="hidden sm:inline">Thêm mới</span>
                     </button>
-                  </div>
-                )}
+                  )}
+                </div>
               </div>
-            </div>
 
-            {/* Table */}
-            <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
               <div className="overflow-x-auto">
                 <table className="w-full text-left border-collapse">
                   <thead>
-                    <tr className="bg-slate-50 border-bottom border-slate-200">
-                      <th className="px-6 py-4 text-sm font-bold text-slate-600 uppercase tracking-wider">Tên chi đoàn</th>
-                      <th className="px-6 py-4 text-sm font-bold text-slate-600 uppercase tracking-wider">Đoàn viên</th>
-                      <th className="px-6 py-4 text-sm font-bold text-slate-600 uppercase tracking-wider">Thanh niên</th>
-                      <th className="px-6 py-4 text-sm font-bold text-slate-600 uppercase tracking-wider">Tổng số</th>
-                      <th className="px-6 py-4 text-sm font-bold text-slate-600 uppercase tracking-wider">Phòng học</th>
-                      <th className="px-6 py-4 text-sm font-bold text-slate-600 uppercase tracking-wider">Bí thư</th>
-                      <th className="px-6 py-4 text-sm font-bold text-slate-600 uppercase tracking-wider">Thông tin thêm</th>
-                      {user.isAdmin && <th className="px-6 py-4 text-sm font-bold text-slate-600 uppercase tracking-wider text-right">Thao tác</th>}
+                    <tr className="bg-slate-50 text-slate-500 text-sm border-b border-slate-200">
+                      <th className="p-4 font-semibold">Tên chi đoàn</th>
+                      <th className="p-4 font-semibold text-center">Đoàn viên</th>
+                      <th className="p-4 font-semibold text-center">Thanh niên</th>
+                      <th className="p-4 font-semibold text-center">Tổng số</th>
+                      <th className="p-4 font-semibold">Phòng học</th>
+                      <th className="p-4 font-semibold">Bí thư</th>
+                      {currentUser && <th className="p-4 font-semibold text-right">Thao tác</th>}
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
-                    {qlChiDoan.filter(item => item.tenchidoan.toLowerCase().includes(searchTerm.toLowerCase()) || item.bithu.toLowerCase().includes(searchTerm.toLowerCase())).map((item) => (
-                      <tr key={item.id} className="hover:bg-blue-50/30 transition-colors group">
-                        <td className="px-6 py-4 font-bold text-primary">{item.tenchidoan}</td>
-                        <td className="px-6 py-4 text-slate-600">{item.doanvien}</td>
-                        <td className="px-6 py-4 text-slate-600">{item.thanhnien}</td>
-                        <td className="px-6 py-4 text-slate-600">{item.tongso}</td>
-                        <td className="px-6 py-4 text-slate-600">{item.phonghoc}</td>
-                        <td className="px-6 py-4 text-slate-600">{item.bithu}</td>
-                        <td className="px-6 py-4 text-slate-600">{item.thongtinthem}</td>
-                        {user.isAdmin && (
-                          <td className="px-6 py-4 text-right">
-                            <div className="flex justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                              <button
-                                onClick={() => {
-                                  setIsEditing(item.id);
-                                  setFormData(item);
-                                }}
-                                className="p-2 text-blue-600 hover:bg-blue-100 rounded-lg transition-colors"
-                                title="Chỉnh sửa"
-                              >
-                                <Edit2 size={18} />
-                              </button>
-                              <button
-                                onClick={() => handleDeleteQlChiDoan(item.id)}
-                                className="p-2 text-red-600 hover:bg-red-100 rounded-lg transition-colors"
-                                title="Xóa"
-                              >
-                                <Trash2 size={18} />
-                              </button>
-                            </div>
-                          </td>
-                        )}
+                    {filteredQlChiDoan.length === 0 ? (
+                      <tr>
+                        <td colSpan={currentUser ? 7 : 6} className="p-8 text-center text-slate-500">
+                          <Database size={48} className="mx-auto mb-3 text-slate-300" />
+                          <p>Chưa có dữ liệu chi đoàn nào.</p>
+                        </td>
                       </tr>
-                    ))}
+                    ) : (
+                      filteredQlChiDoan.map((item) => (
+                        <tr key={item.id} className="hover:bg-slate-50/80 transition-colors group">
+                          <td className="p-4 font-medium text-slate-800">{item.tenchidoan}</td>
+                          <td className="p-4 text-center text-slate-600">{item.doanvien}</td>
+                          <td className="p-4 text-center text-slate-600">{item.thanhnien}</td>
+                          <td className="p-4 text-center font-semibold text-primary">{item.tongso}</td>
+                          <td className="p-4 text-slate-600">{item.phonghoc}</td>
+                          <td className="p-4 text-slate-600">{item.bithu}</td>
+                          {currentUser && (
+                            <td className="p-4 text-right">
+                              <div className="flex items-center justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                                <button
+                                  onClick={() => {
+                                    setFormData(item);
+                                    setIsEditing(item.id);
+                                  }}
+                                  className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                                  title="Sửa"
+                                >
+                                  <Edit2 size={16} />
+                                </button>
+                                <button
+                                  onClick={() => {
+                                    if (window.confirm('Bạn có chắc chắn muốn xóa chi đoàn này?')) {
+                                      handleDeleteQlChiDoan(item.id);
+                                    }
+                                  }}
+                                  className="p-2 text-rose-600 hover:bg-rose-50 rounded-lg transition-colors"
+                                  title="Xóa"
+                                >
+                                  <Trash2 size={16} />
+                                </button>
+                              </div>
+                            </td>
+                          )}
+                        </tr>
+                      ))
+                    )}
                   </tbody>
                 </table>
               </div>
             </div>
-          </div>
-        )}
+          )}
+
+          {/* Tab Content: Tài Khoản */}
+          {activeTab === 'taikhoan' && currentUser?.role === 'Admin' && (
+            <div className="bg-white rounded-3xl shadow-sm border border-slate-200 overflow-hidden">
+              <div className="p-6 border-b border-slate-100 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-slate-50/50">
+                <div className="flex items-center gap-3">
+                  <div className="bg-indigo-100 p-2 rounded-xl text-indigo-600">
+                    <UserCog size={24} />
+                  </div>
+                  <div>
+                    <h2 className="text-xl font-bold text-slate-800">Quản lý Tài khoản</h2>
+                    <p className="text-sm text-slate-500">Quản lý người dùng và quyền truy cập</p>
+                  </div>
+                </div>
+                
+                <div className="flex items-center gap-3 w-full sm:w-auto">
+                  <div className="relative flex-1 sm:w-64">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
+                    <input
+                      type="text"
+                      placeholder="Tìm kiếm tài khoản..."
+                      value={searchTerm}
+                      onChange={(e) => setSearchTerm(e.target.value)}
+                      className="w-full pl-10 pr-4 py-2 rounded-xl border border-slate-200 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition-all"
+                    />
+                  </div>
+                  <button
+                    onClick={() => {
+                      setFormData({ role: 'User' });
+                      setIsEditing('new_taikhoan');
+                    }}
+                    className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-xl font-medium transition-colors whitespace-nowrap"
+                  >
+                    <Plus size={18} />
+                    <span className="hidden sm:inline">Thêm tài khoản</span>
+                  </button>
+                </div>
+              </div>
+
+              <div className="overflow-x-auto">
+                <table className="w-full text-left border-collapse">
+                  <thead>
+                    <tr className="bg-slate-50 text-slate-500 text-sm border-b border-slate-200">
+                      <th className="p-4 font-semibold">Tên đăng nhập</th>
+                      <th className="p-4 font-semibold">Họ và tên</th>
+                      <th className="p-4 font-semibold">Đối tượng</th>
+                      <th className="p-4 font-semibold">Chi đoàn</th>
+                      <th className="p-4 font-semibold text-right">Thao tác</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {filteredTaiKhoan.length === 0 ? (
+                      <tr>
+                        <td colSpan={5} className="p-8 text-center text-slate-500">
+                          <Database size={48} className="mx-auto mb-3 text-slate-300" />
+                          <p>Chưa có tài khoản nào.</p>
+                        </td>
+                      </tr>
+                    ) : (
+                      filteredTaiKhoan.map((item) => (
+                        <tr key={item.id} className="hover:bg-slate-50/80 transition-colors group">
+                          <td className="p-4 font-medium text-slate-800">{item.username}</td>
+                          <td className="p-4 text-slate-600">{item.fullName}</td>
+                          <td className="p-4">
+                            <span className={cn(
+                              "px-2 py-1 rounded-md text-xs font-medium",
+                              item.role === 'Admin' ? "bg-rose-100 text-rose-700" : "bg-blue-100 text-blue-700"
+                            )}>
+                              {item.role}
+                            </span>
+                          </td>
+                          <td className="p-4 text-slate-600">{item.chiDoan || '-'}</td>
+                          <td className="p-4 text-right">
+                            <div className="flex items-center justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                              <button
+                                onClick={() => {
+                                  setFormData(item);
+                                  setIsEditing(item.id);
+                                }}
+                                className="p-2 text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors"
+                                title="Sửa"
+                              >
+                                <Edit2 size={16} />
+                              </button>
+                              {item.username !== 'Admin' && (
+                                <button
+                                  onClick={() => {
+                                    if (window.confirm('Bạn có chắc chắn muốn xóa tài khoản này?')) {
+                                      handleDeleteTaiKhoan(item.id);
+                                    }
+                                  }}
+                                  className="p-2 text-rose-600 hover:bg-rose-50 rounded-lg transition-colors"
+                                  title="Xóa"
+                                >
+                                  <Trash2 size={16} />
+                                </button>
+                              )}
+                            </div>
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+        </div>
       </main>
 
-      {/* Modal for Add/Edit */}
+      {/* Login Modal */}
       <AnimatePresence>
-        {isEditing && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+        {isLoginModalOpen && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm">
             <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              onClick={() => setIsEditing(null)}
-              className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm"
-            />
-            <motion.div
-              initial={{ opacity: 0, scale: 0.95, y: 20 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.95, y: 20 }}
-              className="relative w-full max-w-2xl bg-white rounded-3xl shadow-2xl overflow-hidden"
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="bg-white rounded-3xl shadow-2xl w-full max-w-md overflow-hidden"
             >
-              <div className="bg-primary px-6 py-4 flex justify-between items-center text-white">
-                <h3 className="text-lg font-bold">
-                  {isEditing === 'new' ? 'Thêm chi đoàn mới' : isEditing === 'new-member' ? 'Thêm đoàn viên mới' : 'Chỉnh sửa thông tin'}
+              <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-slate-50">
+                <h3 className="text-xl font-bold text-slate-800 flex items-center gap-2">
+                  <LogIn className="text-primary" />
+                  Đăng nhập hệ thống
                 </h3>
-                <button onClick={() => setIsEditing(null)} className="hover:bg-white/20 p-1 rounded-lg transition-colors">
-                  <X size={24} />
+                <button 
+                  onClick={() => setIsLoginModalOpen(false)}
+                  className="p-2 hover:bg-slate-200 rounded-full transition-colors"
+                >
+                  <X size={20} className="text-slate-500" />
                 </button>
               </div>
+              <form onSubmit={handleLogin} className="p-6 space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">Tên đăng nhập</label>
+                  <input
+                    type="text"
+                    required
+                    value={loginForm.username}
+                    onChange={e => setLoginForm({...loginForm, username: e.target.value})}
+                    className="w-full px-4 py-2 rounded-xl border border-slate-200 focus:ring-2 focus:ring-primary focus:border-primary outline-none"
+                    placeholder="Nhập tên đăng nhập"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">Mật khẩu</label>
+                  <input
+                    type="password"
+                    required
+                    value={loginForm.password}
+                    onChange={e => setLoginForm({...loginForm, password: e.target.value})}
+                    className="w-full px-4 py-2 rounded-xl border border-slate-200 focus:ring-2 focus:ring-primary focus:border-primary outline-none"
+                    placeholder="Nhập mật khẩu"
+                  />
+                </div>
+                <div className="pt-4 flex gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setIsLoginModalOpen(false)}
+                    className="flex-1 px-4 py-2 rounded-xl font-medium text-slate-600 hover:bg-slate-100 transition-colors"
+                  >
+                    Hủy
+                  </button>
+                  <button
+                    type="submit"
+                    className="flex-1 px-4 py-2 rounded-xl font-bold text-white bg-primary hover:bg-primary/90 transition-colors shadow-md"
+                  >
+                    Đăng nhập
+                  </button>
+                </div>
+              </form>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
 
-              <div className="p-6 grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <label className="text-xs font-bold text-slate-500 uppercase ml-1">Tên chi đoàn</label>
-                  <input
-                    type="text"
-                    className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary"
-                    value={formData.tenchidoan || ''}
-                    onChange={(e) => setFormData({ ...formData, tenchidoan: e.target.value })}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <label className="text-xs font-bold text-slate-500 uppercase ml-1">Đoàn viên</label>
-                  <input
-                    type="number"
-                    className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary"
-                    value={formData.doanvien || ''}
-                    onChange={(e) => setFormData({ ...formData, doanvien: Number(e.target.value) })}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <label className="text-xs font-bold text-slate-500 uppercase ml-1">Thanh niên</label>
-                  <input
-                    type="number"
-                    className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary"
-                    value={formData.thanhnien || ''}
-                    onChange={(e) => setFormData({ ...formData, thanhnien: Number(e.target.value) })}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <label className="text-xs font-bold text-slate-500 uppercase ml-1">Tổng số</label>
-                  <input
-                    type="number"
-                    className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary"
-                    value={formData.tongso || ''}
-                    onChange={(e) => setFormData({ ...formData, tongso: Number(e.target.value) })}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <label className="text-xs font-bold text-slate-500 uppercase ml-1">Phòng học</label>
-                  <input
-                    type="text"
-                    className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary"
-                    value={formData.phonghoc || ''}
-                    onChange={(e) => setFormData({ ...formData, phonghoc: e.target.value })}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <label className="text-xs font-bold text-slate-500 uppercase ml-1">Bí thư</label>
-                  <input
-                    type="text"
-                    className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary"
-                    value={formData.bithu || ''}
-                    onChange={(e) => setFormData({ ...formData, bithu: e.target.value })}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <label className="text-xs font-bold text-slate-500 uppercase ml-1">Thông tin thêm</label>
-                  <input
-                    type="text"
-                    className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary"
-                    value={formData.thongtinthem || ''}
-                    onChange={(e) => setFormData({ ...formData, thongtinthem: e.target.value })}
-                  />
+      {/* Edit/Add QlChiDoan Modal */}
+      <AnimatePresence>
+        {(isEditing && isEditing !== 'new_taikhoan' && activeTab === 'qlchidoan') && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="bg-white rounded-3xl shadow-2xl w-full max-w-2xl overflow-hidden max-h-[90vh] flex flex-col"
+            >
+              <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-slate-50">
+                <h3 className="text-xl font-bold text-slate-800">
+                  {isEditing === 'new_qlchidoan' ? 'Thêm Chi đoàn mới' : 'Cập nhật thông tin'}
+                </h3>
+                <button 
+                  onClick={() => setIsEditing(null)}
+                  className="p-2 hover:bg-slate-200 rounded-full transition-colors"
+                >
+                  <X size={20} className="text-slate-500" />
+                </button>
+              </div>
+              
+              <div className="p-6 overflow-y-auto">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div className="md:col-span-2">
+                    <label className="block text-sm font-medium text-slate-700 mb-1">Tên chi đoàn *</label>
+                    <input
+                      type="text"
+                      value={formData.tenchidoan || ''}
+                      onChange={e => setFormData({...formData, tenchidoan: e.target.value})}
+                      className="w-full px-4 py-2 rounded-xl border border-slate-200 focus:ring-2 focus:ring-primary focus:border-primary outline-none"
+                      placeholder="VD: 10A1"
+                    />
+                  </div>
+                  
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">Số lượng đoàn viên</label>
+                    <input
+                      type="number"
+                      min="0"
+                      value={formData.doanvien || ''}
+                      onChange={e => setFormData({...formData, doanvien: e.target.value})}
+                      className="w-full px-4 py-2 rounded-xl border border-slate-200 focus:ring-2 focus:ring-primary focus:border-primary outline-none"
+                    />
+                  </div>
+                  
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">Số lượng thanh niên</label>
+                    <input
+                      type="number"
+                      min="0"
+                      value={formData.thanhnien || ''}
+                      onChange={e => setFormData({...formData, thanhnien: e.target.value})}
+                      className="w-full px-4 py-2 rounded-xl border border-slate-200 focus:ring-2 focus:ring-primary focus:border-primary outline-none"
+                    />
+                  </div>
+                  
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">Tổng số</label>
+                    <input
+                      type="number"
+                      min="0"
+                      value={formData.tongso || ''}
+                      onChange={e => setFormData({...formData, tongso: e.target.value})}
+                      className="w-full px-4 py-2 rounded-xl border border-slate-200 focus:ring-2 focus:ring-primary focus:border-primary outline-none"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">Phòng học</label>
+                    <input
+                      type="text"
+                      value={formData.phonghoc || ''}
+                      onChange={e => setFormData({...formData, phonghoc: e.target.value})}
+                      className="w-full px-4 py-2 rounded-xl border border-slate-200 focus:ring-2 focus:ring-primary focus:border-primary outline-none"
+                      placeholder="VD: Phòng 101"
+                    />
+                  </div>
+
+                  <div className="md:col-span-2">
+                    <label className="block text-sm font-medium text-slate-700 mb-1">Bí thư</label>
+                    <input
+                      type="text"
+                      value={formData.bithu || ''}
+                      onChange={e => setFormData({...formData, bithu: e.target.value})}
+                      className="w-full px-4 py-2 rounded-xl border border-slate-200 focus:ring-2 focus:ring-primary focus:border-primary outline-none"
+                      placeholder="Họ và tên Bí thư"
+                    />
+                  </div>
+
+                  <div className="md:col-span-2">
+                    <label className="block text-sm font-medium text-slate-700 mb-1">Thông tin thêm</label>
+                    <textarea
+                      value={formData.thongtinthem || ''}
+                      onChange={e => setFormData({...formData, thongtinthem: e.target.value})}
+                      className="w-full px-4 py-2 rounded-xl border border-slate-200 focus:ring-2 focus:ring-primary focus:border-primary outline-none min-h-[100px]"
+                      placeholder="Ghi chú thêm..."
+                    />
+                  </div>
                 </div>
               </div>
-
-              <div className="p-6 bg-slate-50 flex justify-end gap-3">
+              
+              <div className="p-6 border-t border-slate-100 bg-slate-50 flex justify-end gap-3">
                 <button
                   onClick={() => setIsEditing(null)}
-                  className="px-6 py-2 text-slate-600 font-bold hover:bg-slate-200 rounded-xl transition-colors"
+                  className="px-6 py-2 rounded-xl font-medium text-slate-600 hover:bg-slate-200 transition-colors"
                 >
                   Hủy
                 </button>
                 <button
-                  onClick={isEditing === 'new-member' ? handleAddQlChiDoan : handleUpdateQlChiDoan}
-                  className="flex items-center gap-2 bg-primary hover:bg-primary/90 text-white px-8 py-2 rounded-xl font-bold transition-all shadow-md active:scale-95"
+                  onClick={isEditing === 'new_qlchidoan' ? handleAddQlChiDoan : handleUpdateQlChiDoan}
+                  className="flex items-center gap-2 bg-primary hover:bg-primary/90 text-white px-6 py-2 rounded-xl font-medium transition-colors shadow-md"
                 >
                   <Save size={18} />
                   Lưu thay đổi
@@ -607,15 +863,111 @@ export default function App() {
         )}
       </AnimatePresence>
 
-      {/* Footer */}
-      <footer className="bg-white border-t border-slate-200 py-6">
-        <div className="max-w-7xl mx-auto px-4 text-center">
-          <p className="text-slate-400 text-sm">
-            © 2026 Hệ thống quản lý điểm thi đua - THPT Lê Hoàn. Phát triển bởi AI Studio.
-          </p>
-        </div>
-      </footer>
-    </div>
+      {/* Edit/Add TaiKhoan Modal */}
+      <AnimatePresence>
+        {(isEditing && (isEditing === 'new_taikhoan' || activeTab === 'taikhoan')) && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="bg-white rounded-3xl shadow-2xl w-full max-w-md overflow-hidden max-h-[90vh] flex flex-col"
+            >
+              <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-slate-50">
+                <h3 className="text-xl font-bold text-slate-800">
+                  {isEditing === 'new_taikhoan' ? 'Thêm Tài khoản mới' : 'Cập nhật Tài khoản'}
+                </h3>
+                <button 
+                  onClick={() => setIsEditing(null)}
+                  className="p-2 hover:bg-slate-200 rounded-full transition-colors"
+                >
+                  <X size={20} className="text-slate-500" />
+                </button>
+              </div>
+              
+              <div className="p-6 overflow-y-auto space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">Tên đăng nhập *</label>
+                  <input
+                    type="text"
+                    required
+                    disabled={isEditing !== 'new_taikhoan'}
+                    value={formData.username || ''}
+                    onChange={e => setFormData({...formData, username: e.target.value})}
+                    className="w-full px-4 py-2 rounded-xl border border-slate-200 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none disabled:bg-slate-100 disabled:text-slate-500"
+                    placeholder="VD: gv_nguyenvana"
+                  />
+                </div>
+                
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">Mật khẩu *</label>
+                  <input
+                    type="text"
+                    required
+                    value={formData.password || ''}
+                    onChange={e => setFormData({...formData, password: e.target.value})}
+                    className="w-full px-4 py-2 rounded-xl border border-slate-200 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none"
+                    placeholder="Nhập mật khẩu"
+                  />
+                </div>
+                
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">Họ và tên *</label>
+                  <input
+                    type="text"
+                    required
+                    value={formData.fullName || ''}
+                    onChange={e => setFormData({...formData, fullName: e.target.value})}
+                    className="w-full px-4 py-2 rounded-xl border border-slate-200 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none"
+                    placeholder="VD: Nguyễn Văn A"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">Đối tượng *</label>
+                  <select
+                    value={formData.role || 'User'}
+                    onChange={e => setFormData({...formData, role: e.target.value})}
+                    className="w-full px-4 py-2 rounded-xl border border-slate-200 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none bg-white"
+                  >
+                    <option value="User">Người dùng (User)</option>
+                    <option value="Admin">Quản trị viên (Admin)</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">Tên chi đoàn (Nếu có)</label>
+                  <input
+                    type="text"
+                    value={formData.chiDoan || ''}
+                    onChange={e => setFormData({...formData, chiDoan: e.target.value})}
+                    className="w-full px-4 py-2 rounded-xl border border-slate-200 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none"
+                    placeholder="VD: 10A1"
+                  />
+                </div>
+              </div>
+              
+              <div className="p-6 border-t border-slate-100 bg-slate-50 flex justify-end gap-3">
+                <button
+                  onClick={() => setIsEditing(null)}
+                  className="px-6 py-2 rounded-xl font-medium text-slate-600 hover:bg-slate-200 transition-colors"
+                >
+                  Hủy
+                </button>
+                <button
+                  onClick={isEditing === 'new_taikhoan' ? handleAddTaiKhoan : handleUpdateTaiKhoan}
+                  className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-2 rounded-xl font-medium transition-colors shadow-md"
+                >
+                  <Save size={18} />
+                  Lưu tài khoản
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      </div>
     </ErrorBoundary>
   );
 }

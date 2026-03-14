@@ -10,6 +10,16 @@ export interface QlChiDoan {
   updatedAt?: any;
 }
 
+export interface TaiKhoan {
+  id: string;
+  username: string;
+  password?: string;
+  fullName: string;
+  role: string;
+  chiDoan: string;
+  updatedAt?: any;
+}
+
 export interface UserProfile {
   uid: string;
   email: string;
