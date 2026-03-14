@@ -45,10 +45,10 @@ service cloud.firestore {
     }
 
     match /qlchidoan/{id} {
-      allow read: if isAuthenticated();
-      allow create: if isAdmin() && isValidQlChiDoan(request.resource.data);
-      allow update: if isAdmin() && isValidQlChiDoan(request.resource.data);
-      allow delete: if isAdmin();
+      allow read: if true;
+      allow create: if isValidQlChiDoan(request.resource.data);
+      allow update: if isValidQlChiDoan(request.resource.data);
+      allow delete: if true;
     }
   }
 }

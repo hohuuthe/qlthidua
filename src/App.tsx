@@ -146,23 +146,16 @@ export default function App() {
     message: ''
   });
 
-  // Auth Listener
+  // Auth Listener (Bypassed)
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
-      if (firebaseUser) {
-        setUser({
-          uid: firebaseUser.uid,
-          email: firebaseUser.email || '',
-          displayName: firebaseUser.displayName || 'Người dùng',
-          photoURL: firebaseUser.photoURL || '',
-          isAdmin: firebaseUser.email === 'huuthe87@gmail.com'
-        });
-      } else {
-        setUser(null);
-      }
-      setIsAuthReady(true);
+    setUser({
+      uid: 'mock-user-id',
+      email: 'admin@example.com',
+      displayName: 'Admin (Bypassed)',
+      photoURL: '',
+      isAdmin: true
     });
-    return () => unsubscribe();
+    setIsAuthReady(true);
   }, []);
 
   // Firestore Real-time Listener for QlChiDoan
@@ -341,18 +334,11 @@ export default function App() {
           <div className="flex items-center gap-4">
             {user ? (
               <div className="flex items-center gap-3 bg-white/10 p-1 pr-4 rounded-full backdrop-blur-sm">
-                <img src={user.photoURL} alt={user.displayName} className="w-8 h-8 rounded-full border border-white/20" referrerPolicy="no-referrer" />
+                <img src={user.photoURL || 'https://picsum.photos/seed/admin/32/32'} alt={user.displayName} className="w-8 h-8 rounded-full border border-white/20" referrerPolicy="no-referrer" />
                 <div className="hidden sm:block">
                   <p className="text-xs font-bold leading-none">{user.displayName}</p>
                   <p className="text-[10px] text-blue-200">{user.isAdmin ? 'Quản trị viên' : 'Người dùng'}</p>
                 </div>
-                <button 
-                  onClick={handleLogout}
-                  className="p-2 hover:bg-white/20 rounded-full transition-colors"
-                  title="Đăng xuất"
-                >
-                  <LogOut size={18} />
-                </button>
               </div>
             ) : (
               <button
