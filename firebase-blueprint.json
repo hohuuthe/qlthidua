@@ -6,14 +6,26 @@
       "type": "object",
       "properties": {
         "chiDoan": { "type": "string", "description": "Tên chi đoàn" },
-        "biThu": { "type": "string", "description": "Họ tên bí thư" },
-        "phoBiThu": { "type": "string", "description": "Họ tên phó bí thư" },
-        "uyVien": { "type": "string", "description": "Họ tên ủy viên" },
-        "lopTruong": { "type": "string", "description": "Họ tên lớp trưởng" },
-        "sdt": { "type": "string", "description": "Số điện thoại liên hệ" },
-        "tongSoThanhVien": { "type": "number", "description": "Tổng số thành viên" },
         "doanVien": { "type": "number", "description": "Số lượng đoàn viên" },
         "thanhNien": { "type": "number", "description": "Số lượng thanh niên" },
+        "tongSo": { "type": "number", "description": "Tổng số thành viên" },
+        "phongHoc": { "type": "string", "description": "Phòng học" },
+        "updatedAt": { "type": "string", "format": "date-time", "description": "Thời gian cập nhật cuối" }
+      },
+      "required": ["chiDoan"]
+    },
+    "MemberInfo": {
+      "title": "Đoàn viên",
+      "description": "Thông tin chi tiết về quản lý đoàn viên",
+      "type": "object",
+      "properties": {
+        "chiDoan": { "type": "string", "description": "Tên chi đoàn" },
+        "doanVien": { "type": "number", "description": "Số lượng đoàn viên" },
+        "thanhNien": { "type": "number", "description": "Số lượng thanh niên" },
+        "tongSo": { "type": "number", "description": "Tổng số thành viên" },
+        "phongHoc": { "type": "string", "description": "Phòng học" },
+        "biThu": { "type": "string", "description": "Bí thư" },
+        "thongTinThem": { "type": "string", "description": "Thông tin thêm" },
         "updatedAt": { "type": "string", "format": "date-time", "description": "Thời gian cập nhật cuối" }
       },
       "required": ["chiDoan"]
@@ -23,6 +35,10 @@
     "/classes/{classId}": {
       "schema": "ClassInfo",
       "description": "Danh sách các chi đoàn trong hệ thống"
+    },
+    "/members/{memberId}": {
+      "schema": "MemberInfo",
+      "description": "Danh sách quản lý đoàn viên"
     }
   }
 }

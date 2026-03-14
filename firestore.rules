@@ -9,14 +9,10 @@ service cloud.firestore {
     // Document ID: auto-generated or classId
     // Fields:
     //   - chiDoan: string (required, 1-100 chars)
-    //   - biThu: string (0-100 chars)
-    //   - phoBiThu: string (0-100 chars)
-    //   - uyVien: string (0-100 chars)
-    //   - lopTruong: string (0-100 chars)
-    //   - sdt: string (0-20 chars)
-    //   - tongSoThanhVien: number (positive)
     //   - doanVien: number (positive)
     //   - thanhNien: number (positive)
+    //   - tongSo: number (positive)
+    //   - phongHoc: string (0-50 chars)
     //   - updatedAt: timestamp
     //
     // ===============================================================
@@ -36,22 +32,50 @@ service cloud.firestore {
     }
 
     function isValidClass(data) {
-      return hasOnlyAllowedFields(['chiDoan', 'biThu', 'phoBiThu', 'uyVien', 'lopTruong', 'sdt', 'tongSoThanhVien', 'doanVien', 'thanhNien', 'updatedAt']) &&
+      return hasOnlyAllowedFields(['chiDoan', 'doanVien', 'thanhNien', 'tongSo', 'phongHoc', 'updatedAt']) &&
              data.chiDoan is string && data.chiDoan.size() > 0 && data.chiDoan.size() <= 100 &&
-             (!('biThu' in data) || (data.biThu is string && data.biThu.size() <= 100)) &&
-             (!('phoBiThu' in data) || (data.phoBiThu is string && data.phoBiThu.size() <= 100)) &&
-             (!('uyVien' in data) || (data.uyVien is string && data.uyVien.size() <= 100)) &&
-             (!('lopTruong' in data) || (data.lopTruong is string && data.lopTruong.size() <= 100)) &&
-             (!('sdt' in data) || (data.sdt is string && data.sdt.size() <= 20)) &&
-             (!('tongSoThanhVien' in data) || (data.tongSoThanhVien is number && data.tongSoThanhVien >= 0)) &&
              (!('doanVien' in data) || (data.doanVien is number && data.doanVien >= 0)) &&
-             (!('thanhNien' in data) || (data.thanhNien is number && data.thanhNien >= 0));
+             (!('thanhNien' in data) || (data.thanhNien is number && data.thanhNien >= 0)) &&
+             (!('tongSo' in data) || (data.tongSo is number && data.tongSo >= 0)) &&
+             (!('phongHoc' in data) || (data.phongHoc is string && data.phongHoc.size() <= 50));
+    }
+
+    // Collection: members
+    // Document ID: auto-generated or memberId
+    // Fields:
+    //   - chiDoan: string (required, 1-100 chars)
+    //   - doanVien: number (positive)
+    //   - thanhNien: number (positive)
+    //   - tongSo: number (positive)
+    //   - phongHoc: string (0-50 chars)
+    //   - biThu: string (0-100 chars)
+    //   - thongTinThem: string (0-500 chars)
+    //   - updatedAt: timestamp
+    //
+    // ===============================================================
+
+    function isValidMember(data) {
+      return hasOnlyAllowedFields(['chiDoan', 'doanVien', 'thanhNien', 'tongSo', 'phongHoc', 'biThu', 'thongTinThem', 'updatedAt']) &&
+             data.chiDoan is string && data.chiDoan.size() > 0 && data.chiDoan.size() <= 100 &&
+             (!('doanVien' in data) || (data.doanVien is number && data.doanVien >= 0)) &&
+             (!('thanhNien' in data) || (data.thanhNien is number && data.thanhNien >= 0)) &&
+             (!('tongSo' in data) || (data.tongSo is number && data.tongSo >= 0)) &&
+             (!('phongHoc' in data) || (data.phongHoc is string && data.phongHoc.size() <= 50)) &&
+             (!('biThu' in data) || (data.biThu is string && data.biThu.size() <= 100)) &&
+             (!('thongTinThem' in data) || (data.thongTinThem is string && data.thongTinThem.size() <= 500));
     }
 
     match /classes/{classId} {
       allow read: if isAuthenticated();
       allow create: if isAdmin() && isValidClass(request.resource.data);
       allow update: if isAdmin() && isValidClass(request.resource.data);
+      allow delete: if isAdmin();
+    }
+
+    match /members/{memberId} {
+      allow read: if isAuthenticated();
+      allow create: if isAdmin() && isValidMember(request.resource.data);
+      allow update: if isAdmin() && isValidMember(request.resource.data);
       allow delete: if isAdmin();
     }
   }

@@ -1,14 +1,22 @@
 export interface ClassInfo {
   id: string;
   chiDoan: string;
-  biThu: string;
-  phoBiThu: string;
-  uyVien: string;
-  lopTruong: string;
-  sdt: string;
-  tongSoThanhVien: number;
   doanVien: number;
   thanhNien: number;
+  tongSo: number;
+  phongHoc: string;
+  updatedAt?: any;
+}
+
+export interface MemberInfo {
+  id: string;
+  chiDoan: string;
+  doanVien: number;
+  thanhNien: number;
+  tongSo: number;
+  phongHoc: string;
+  biThu: string;
+  thongTinThem: string;
   updatedAt?: any;
 }
 
