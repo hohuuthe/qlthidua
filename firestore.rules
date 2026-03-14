@@ -5,14 +5,16 @@ service cloud.firestore {
     // Assumed Data Model
     // ===============================================================
     //
-    // Collection: classes
-    // Document ID: auto-generated or classId
+    // Collection: qlchidoan
+    // Document ID: auto-generated or id
     // Fields:
-    //   - chiDoan: string (required, 1-100 chars)
-    //   - doanVien: number (positive)
-    //   - thanhNien: number (positive)
-    //   - tongSo: number (positive)
-    //   - phongHoc: string (0-50 chars)
+    //   - tenchidoan: string (required, 1-100 chars)
+    //   - doanvien: number (positive)
+    //   - thanhnien: number (positive)
+    //   - tongso: number (positive)
+    //   - phonghoc: string (0-50 chars)
+    //   - bithu: string (0-100 chars)
+    //   - thongtinthem: string (0-500 chars)
     //   - updatedAt: timestamp
     //
     // ===============================================================
@@ -31,51 +33,21 @@ service cloud.firestore {
       return request.resource.data.keys().hasOnly(fields);
     }
 
-    function isValidClass(data) {
-      return hasOnlyAllowedFields(['chiDoan', 'doanVien', 'thanhNien', 'tongSo', 'phongHoc', 'updatedAt']) &&
-             data.chiDoan is string && data.chiDoan.size() > 0 && data.chiDoan.size() <= 100 &&
-             (!('doanVien' in data) || (data.doanVien is number && data.doanVien >= 0)) &&
-             (!('thanhNien' in data) || (data.thanhNien is number && data.thanhNien >= 0)) &&
-             (!('tongSo' in data) || (data.tongSo is number && data.tongSo >= 0)) &&
-             (!('phongHoc' in data) || (data.phongHoc is string && data.phongHoc.size() <= 50));
+    function isValidQlChiDoan(data) {
+      return hasOnlyAllowedFields(['tenchidoan', 'doanvien', 'thanhnien', 'tongso', 'phonghoc', 'bithu', 'thongtinthem', 'updatedAt']) &&
+             data.tenchidoan is string && data.tenchidoan.size() > 0 && data.tenchidoan.size() <= 100 &&
+             (!('doanvien' in data) || (data.doanvien is number && data.doanvien >= 0)) &&
+             (!('thanhnien' in data) || (data.thanhnien is number && data.thanhnien >= 0)) &&
+             (!('tongso' in data) || (data.tongso is number && data.tongso >= 0)) &&
+             (!('phonghoc' in data) || (data.phonghoc is string && data.phonghoc.size() <= 50)) &&
+             (!('bithu' in data) || (data.bithu is string && data.bithu.size() <= 100)) &&
+             (!('thongtinthem' in data) || (data.thongtinthem is string && data.thongtinthem.size() <= 500));
     }
 
-    // Collection: members
-    // Document ID: auto-generated or memberId
-    // Fields:
-    //   - chiDoan: string (required, 1-100 chars)
-    //   - doanVien: number (positive)
-    //   - thanhNien: number (positive)
-    //   - tongSo: number (positive)
-    //   - phongHoc: string (0-50 chars)
-    //   - biThu: string (0-100 chars)
-    //   - thongTinThem: string (0-500 chars)
-    //   - updatedAt: timestamp
-    //
-    // ===============================================================
-
-    function isValidMember(data) {
-      return hasOnlyAllowedFields(['chiDoan', 'doanVien', 'thanhNien', 'tongSo', 'phongHoc', 'biThu', 'thongTinThem', 'updatedAt']) &&
-             data.chiDoan is string && data.chiDoan.size() > 0 && data.chiDoan.size() <= 100 &&
-             (!('doanVien' in data) || (data.doanVien is number && data.doanVien >= 0)) &&
-             (!('thanhNien' in data) || (data.thanhNien is number && data.thanhNien >= 0)) &&
-             (!('tongSo' in data) || (data.tongSo is number && data.tongSo >= 0)) &&
-             (!('phongHoc' in data) || (data.phongHoc is string && data.phongHoc.size() <= 50)) &&
-             (!('biThu' in data) || (data.biThu is string && data.biThu.size() <= 100)) &&
-             (!('thongTinThem' in data) || (data.thongTinThem is string && data.thongTinThem.size() <= 500));
-    }
-
-    match /classes/{classId} {
+    match /qlchidoan/{id} {
       allow read: if isAuthenticated();
-      allow create: if isAdmin() && isValidClass(request.resource.data);
-      allow update: if isAdmin() && isValidClass(request.resource.data);
-      allow delete: if isAdmin();
-    }
-
-    match /members/{memberId} {
-      allow read: if isAuthenticated();
-      allow create: if isAdmin() && isValidMember(request.resource.data);
-      allow update: if isAdmin() && isValidMember(request.resource.data);
+      allow create: if isAdmin() && isValidQlChiDoan(request.resource.data);
+      allow update: if isAdmin() && isValidQlChiDoan(request.resource.data);
       allow delete: if isAdmin();
     }
   }

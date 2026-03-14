@@ -1,22 +1,12 @@
-export interface ClassInfo {
+export interface QlChiDoan {
   id: string;
-  chiDoan: string;
-  doanVien: number;
-  thanhNien: number;
-  tongSo: number;
-  phongHoc: string;
-  updatedAt?: any;
-}
-
-export interface MemberInfo {
-  id: string;
-  chiDoan: string;
-  doanVien: number;
-  thanhNien: number;
-  tongSo: number;
-  phongHoc: string;
-  biThu: string;
-  thongTinThem: string;
+  tenchidoan: string;
+  doanvien: number;
+  thanhnien: number;
+  tongso: number;
+  phonghoc: string;
+  bithu: string;
+  thongtinthem: string;
   updatedAt?: any;
 }
 

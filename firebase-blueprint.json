@@ -1,44 +1,26 @@
 {
   "entities": {
-    "ClassInfo": {
+    "QlChiDoan": {
       "title": "Chi đoàn",
-      "description": "Thông tin chi tiết về một chi đoàn",
+      "description": "Thông tin chi tiết về quản lý chi đoàn",
       "type": "object",
       "properties": {
-        "chiDoan": { "type": "string", "description": "Tên chi đoàn" },
-        "doanVien": { "type": "number", "description": "Số lượng đoàn viên" },
-        "thanhNien": { "type": "number", "description": "Số lượng thanh niên" },
-        "tongSo": { "type": "number", "description": "Tổng số thành viên" },
-        "phongHoc": { "type": "string", "description": "Phòng học" },
+        "tenchidoan": { "type": "string", "description": "Tên chi đoàn" },
+        "doanvien": { "type": "number", "description": "Số lượng đoàn viên" },
+        "thanhnien": { "type": "number", "description": "Số lượng thanh niên" },
+        "tongso": { "type": "number", "description": "Tổng số thành viên" },
+        "phonghoc": { "type": "string", "description": "Phòng học" },
+        "bithu": { "type": "string", "description": "Bí thư" },
+        "thongtinthem": { "type": "string", "description": "Thông tin thêm" },
         "updatedAt": { "type": "string", "format": "date-time", "description": "Thời gian cập nhật cuối" }
       },
-      "required": ["chiDoan"]
-    },
-    "MemberInfo": {
-      "title": "Đoàn viên",
-      "description": "Thông tin chi tiết về quản lý đoàn viên",
-      "type": "object",
-      "properties": {
-        "chiDoan": { "type": "string", "description": "Tên chi đoàn" },
-        "doanVien": { "type": "number", "description": "Số lượng đoàn viên" },
-        "thanhNien": { "type": "number", "description": "Số lượng thanh niên" },
-        "tongSo": { "type": "number", "description": "Tổng số thành viên" },
-        "phongHoc": { "type": "string", "description": "Phòng học" },
-        "biThu": { "type": "string", "description": "Bí thư" },
-        "thongTinThem": { "type": "string", "description": "Thông tin thêm" },
-        "updatedAt": { "type": "string", "format": "date-time", "description": "Thời gian cập nhật cuối" }
-      },
-      "required": ["chiDoan"]
+      "required": ["tenchidoan"]
     }
   },
   "firestore": {
-    "/classes/{classId}": {
-      "schema": "ClassInfo",
-      "description": "Danh sách các chi đoàn trong hệ thống"
-    },
-    "/members/{memberId}": {
-      "schema": "MemberInfo",
-      "description": "Danh sách quản lý đoàn viên"
+    "/qlchidoan/{id}": {
+      "schema": "QlChiDoan",
+      "description": "Danh sách quản lý chi đoàn"
     }
   }
 }
